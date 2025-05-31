@@ -1,4 +1,4 @@
-package org.etjen.eAPITemplate.model;
+package org.etjen.eAPITemplate.domain.model;
 
 import jakarta.persistence.*;
 import lombok.Data;

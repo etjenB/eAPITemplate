@@ -3,7 +3,7 @@ package org.etjen.eAPITemplate.security.user;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.etjen.eAPITemplate.model.User;
+import org.etjen.eAPITemplate.domain.model.User;
 import java.util.Collection;
 import java.util.Collections;
 
