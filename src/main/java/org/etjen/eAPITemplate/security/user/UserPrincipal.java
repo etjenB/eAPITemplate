@@ -5,36 +5,40 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.etjen.eAPITemplate.domain.model.User;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.stream.Collectors;
 
 public class UserPrincipal implements UserDetails {
     private final User user;
     public UserPrincipal(User user) { this.user = user; }
     @Override public Collection<? extends GrantedAuthority> getAuthorities()
     {
-        return Collections.singleton(new SimpleGrantedAuthority("USER"));
-        //return user.getRoles();
+        return user.getRoles().stream().map(role -> new SimpleGrantedAuthority(role.getName())).collect(Collectors.toSet());
     }
-    @Override public String getPassword() { return user.getPassword(); }
-    @Override public String getUsername() { return user.getEmail(); }
-    // implement isAccountNonExpired, isAccountNonLocked, isCredentialsNonExpired, isEnabled
+    @Override public String getPassword() {
+        return user.getPassword();
+    }
+
+    @Override public String getUsername() {
+        return user.getEmail();
+    }
+
     @Override
     public boolean isAccountNonExpired() {
-        return true;
+        return user.isAccountNonExpired();
     }
 
     @Override
     public boolean isAccountNonLocked() {
-        return true;
+        return user.isAccountNonLocked();
     }
 
     @Override
     public boolean isCredentialsNonExpired() {
-        return true;
+        return user.isCredentialsNonExpired();
     }
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return user.isEnabled();
     }
 }

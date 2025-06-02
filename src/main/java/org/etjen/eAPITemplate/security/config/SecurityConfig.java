@@ -4,9 +4,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.*;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.builders.*;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -44,12 +44,18 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                // ! cors set to read the allowed-origins from environment e.g. application properties
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(customizer -> customizer.disable())
+                // ! do not need csrf because I do not have a frontend html and I implement jwt anyways
+            .csrf(AbstractHttpConfigurer::disable)
+                // ! we do not maintain a session for user on the backend because we will keep jwt on frontend
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // ! paths public, auth and actuator are open to everyone, admin path is only for logged in user and user with admin role
+                // ! user is path for already logged in user with either role user or role admin
+                // ! all other paths are only for logged in user
             .authorizeHttpRequests(
                     auth -> auth
-                                                            .requestMatchers("/auth/**", "/actuator/**").permitAll()
+                                                            .requestMatchers("/public/**", "/auth/**", "/actuator/**").permitAll()
                                                             .requestMatchers("/admin/**").hasRole("ADMIN")
                                                             .requestMatchers("/user/**").hasAnyRole("USER","ADMIN")
                                                             .anyRequest().authenticated()
@@ -61,9 +67,9 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // 2) Read the property, split on commas, turn into a List<String>
+        // * 2) Read the property, split on commas, turn into a List<String>
         String originsProperty = env.getProperty("app.cors.allowed-origins");
-        // If the property is missing, default to an empty string to avoid NPE
+        // ? If the property is missing, default to an empty string to avoid NPE
         if (originsProperty == null) {
             originsProperty = "";
         }

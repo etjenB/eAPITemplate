@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class TestController {
 
-    @GetMapping("/auth/test/{text}")
+    @GetMapping("/public/test/{text}")
     public String testEndpoint(@PathVariable String text){
         return "Test endpoint: " + text;
     }
