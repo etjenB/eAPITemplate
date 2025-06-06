@@ -7,6 +7,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.*;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -59,6 +60,30 @@ public class SecurityConfig {
                                                             .requestMatchers("/admin/**").hasRole("ADMIN")
                                                             .requestMatchers("/user/**").hasAnyRole("USER","ADMIN")
                                                             .anyRequest().authenticated()
+            )
+            .headers(headers -> headers
+                // * 1) HSTS (Strict-Transport-Security)
+                .httpStrictTransportSecurity(hsts -> hsts
+                        .includeSubDomains(true)
+                        .maxAgeInSeconds(31536000)
+                )
+                // * 2) X-Content-Type-Options: nosniff
+                .contentTypeOptions(HeadersConfigurer.ContentTypeOptionsConfig::disable)
+                // * 3) X-Frame-Options: DENY
+                .frameOptions(HeadersConfigurer.FrameOptionsConfig::deny)
+                // * 4) CONTENT-SECURITY-POLICY header
+                .contentSecurityPolicy(csp -> csp
+                        .policyDirectives(
+                                "default-src 'self'; " +
+                                "script-src 'self' https://cdnjs.cloudflare.com; " +
+                                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+                                "font-src 'self' https://fonts.gstatic.com; " +
+                                "img-src 'self' data:; " +
+                                "object-src 'none'; " +
+                                "frame-ancestors 'none'; " +
+                                "base-uri 'self';"
+                        )
+                )
             );
         return http.build();
     }

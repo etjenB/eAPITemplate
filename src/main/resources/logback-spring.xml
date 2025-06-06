@@ -1,0 +1,57 @@
+<configuration>
+    <springProfile name="dev">
+        <appender name="DEV_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+        <appender name="DEV_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <!-- current-file (not strictly required, but keeps a “latest” link) -->
+            <file>logs/app.txt</file>
+
+            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                <!-- one file per day, named logs/app-YYYY-MM-DD.txt -->
+                <fileNamePattern>logs/app-%d{yyyy-MM-dd}.txt</fileNamePattern>
+                <!-- keep last 1 day of files -->
+                <maxHistory>1</maxHistory>
+            </rollingPolicy>
+
+            <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+                <level>ERROR</level>
+            </filter>
+
+            <encoder>
+                <!-- simple text pattern; change as needed -->
+                <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+
+        <!-- route all log events to DEV_FILE -->
+        <root level="INFO">
+            <appender-ref ref="DEV_CONSOLE"/>
+            <appender-ref ref="DEV_FILE"/>
+        </root>
+    </springProfile>
+
+    <!-- =========== Production profile: same rolling, same WARN+ filter =========== -->
+    <springProfile name="prod">
+        <appender name="PROD_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>logs/app.txt</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                <fileNamePattern>logs/app-%d{yyyy-MM-dd}.txt</fileNamePattern>
+                <maxHistory>30</maxHistory>
+            </rollingPolicy>
+            <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+                <level>ERROR</level>
+            </filter>
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+
+        <root level="ERROR">
+            <appender-ref ref="PROD_FILE"/>
+        </root>
+    </springProfile>
+
+</configuration>

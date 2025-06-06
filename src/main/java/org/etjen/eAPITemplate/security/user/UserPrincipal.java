@@ -5,6 +5,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.etjen.eAPITemplate.domain.model.User;
 import java.util.Collection;
+import java.util.Date;
 import java.util.stream.Collectors;
 
 public class UserPrincipal implements UserDetails {
@@ -30,6 +31,10 @@ public class UserPrincipal implements UserDetails {
     @Override
     public boolean isAccountNonLocked() {
         return user.isAccountNonLocked();
+    }
+
+    public Date getLockedUntil() {
+        return user.getLockedUntil();
     }
 
     @Override

@@ -1,5 +1,6 @@
 package org.etjen.eAPITemplate.web.controller;
 
+import jakarta.validation.Valid;
 import org.etjen.eAPITemplate.domain.model.User;
 import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedExpection;
 import org.etjen.eAPITemplate.service.UserService;
@@ -23,12 +24,12 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public User register(@RequestBody User u) {
+    public User register(@Valid @RequestBody User u) {
         return userService.save(u);
     }
 
     @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestBody LoginRequest loginRequest) throws CustomUnauthorizedExpection {
+    public ResponseEntity<String> login(@Valid @RequestBody LoginRequest loginRequest) throws CustomUnauthorizedExpection {
         return new ResponseEntity<>(userService.login(loginRequest.getUsername(), loginRequest.getPassword()), HttpStatus.OK);
     }
 }

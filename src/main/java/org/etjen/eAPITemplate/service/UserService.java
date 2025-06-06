@@ -6,4 +6,6 @@ import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedExpection;
 public interface UserService {
     User save(User u);
     String login(String username, String password) throws CustomUnauthorizedExpection;
+    void onLoginFailure(String username);
+    void onLoginSuccess(String username);
 }

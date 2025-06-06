@@ -5,6 +5,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import org.etjen.eAPITemplate.exception.auth.jwt.JwtGenerationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -34,15 +35,19 @@ public class JwtService {
         }
     }
 
-    public String generateToken(String username, List<String> roles) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("roles", roles);
-        return Jwts.builder()
-                .setClaims(claims)
-                .setSubject(username)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + 1000*60*3))
-                .signWith(getKey(), SignatureAlgorithm.HS512).compact();
+    public String generateToken(String username, List<String> roles) throws JwtGenerationException {
+        try {
+            Map<String, Object> claims = new HashMap<>();
+            claims.put("roles", roles);
+            return Jwts.builder()
+                    .setClaims(claims)
+                    .setSubject(username)
+                    .setIssuedAt(new Date(System.currentTimeMillis()))
+                    .setExpiration(new Date(System.currentTimeMillis() + 1000*60*3))
+                    .signWith(getKey(), SignatureAlgorithm.HS512).compact();
+        } catch (Exception ex) {
+            throw new JwtGenerationException(ex.getMessage());
+        }
     }
 
     private Key getKey() {
