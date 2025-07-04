@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import java.net.URI;
 
+import static org.etjen.eAPITemplate.exception.ExceptionEnums.ExceptionCode;
+import static org.etjen.eAPITemplate.exception.ExceptionEnums.MethodArgumentNotValidExceptionCode;
+
 /* ! In an effort to standardize REST API error handling, the IETF devised RFC 7807, which creates a generalized error-handling schema.
 
 !    This schema is composed of five parts:
@@ -50,6 +53,7 @@ public class GlobalExceptionHandler {
         pd.setType(URI.create(request.getRequestURI()));
         pd.setTitle("Invalid login input");
         pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", CustomUnauthorizedExpection.code);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
 
@@ -61,6 +65,7 @@ public class GlobalExceptionHandler {
         pd.setType(URI.create(request.getRequestURI()));
         pd.setTitle("Account is locked");
         pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", AccountLockedException.code);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
 
@@ -72,6 +77,7 @@ public class GlobalExceptionHandler {
         pd.setType(URI.create(request.getRequestURI()));
         pd.setTitle("JWT generation exception");
         pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", JwtGenerationException.code);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
 
@@ -85,6 +91,7 @@ public class GlobalExceptionHandler {
         pd.setType(URI.create(request.getRequestURI()));
         pd.setTitle("Invalid request");
         pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", MethodArgumentNotValidExceptionCode.getCode());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
 
@@ -96,6 +103,7 @@ public class GlobalExceptionHandler {
         pd.setType(URI.create(request.getRequestURI()));
         pd.setTitle("Unhandled exception");
         pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", ExceptionCode.getCode());
         // ! (Also log ex.stackTrace here)
         logger.error("Unhandled exception at [{}]", request.getRequestURI(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(pd);
