@@ -3,6 +3,7 @@ package org.etjen.eAPITemplate.domain.model;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.time.Instant;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
@@ -22,7 +23,7 @@ public class User {
     private boolean accountNonExpired = true;
     private boolean accountNonLocked = true;
     private Integer failedLoginAttempts = 0;
-    private Date lockedUntil = null;
+    private Instant lockedUntil = null;
     private boolean credentialsNonExpired = true;
     private boolean enabled = true;
 

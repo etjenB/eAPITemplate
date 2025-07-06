@@ -104,7 +104,7 @@ public class UserServiceImpl implements UserService {
         user.setFailedLoginAttempts(attempts);
         if (attempts >= securityProperties.getMaxFailedAttempts()) {
             user.setAccountNonLocked(false);
-            user.setLockedUntil(new Date(System.currentTimeMillis() + securityProperties.getLockDurationMs()));
+            user.setLockedUntil(Instant.now().plusMillis(securityProperties.getLockDurationMs()));
         }
         userRepository.save(user);
     }

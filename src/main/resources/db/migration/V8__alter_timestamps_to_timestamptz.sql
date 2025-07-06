@@ -1,0 +1,6 @@
+ALTER TABLE users
+    ALTER COLUMN locked_until TYPE TIMESTAMPTZ;
+
+ALTER TABLE refresh_tokens
+    ALTER COLUMN expires_at TYPE TIMESTAMPTZ,
+    ALTER COLUMN issued_at  TYPE TIMESTAMPTZ;

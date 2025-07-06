@@ -9,6 +9,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.etjen.eAPITemplate.security.user.UserDetailsServiceImpl;
 import org.etjen.eAPITemplate.security.user.UserPrincipal;
+
+import java.time.Instant;
 import java.util.Date;
 
 @Component
@@ -28,7 +30,7 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
 
         UserPrincipal user = (UserPrincipal) userDetailsService.loadUserByUsername(username);
 
-        if (user.getLockedUntil() != null && user.getLockedUntil().after(new Date())){
+        if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now())){
             throw new AccountLockedException("Account is locked");
         }
 
