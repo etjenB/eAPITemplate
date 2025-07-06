@@ -5,18 +5,25 @@ import org.etjen.eAPITemplate.domain.model.User;
 import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedExpection;
 import org.etjen.eAPITemplate.service.UserService;
 import org.etjen.eAPITemplate.web.payload.auth.LoginRequest;
+import org.etjen.eAPITemplate.web.payload.auth.LoginResponse;
+import org.etjen.eAPITemplate.web.payload.auth.TokenPair;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.Duration;
 
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
     private final UserService userService;
+    @Value("${security.jwt.expirationMs}")
+    private long jwtExpirationMs;
+    @Value("${security.jwt.refreshExpirationMs}")
+    private long jwtRefreshExpirationMs;
 
     @Autowired
     public AuthController(UserService userService) {
@@ -29,7 +36,50 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<String> login(@Valid @RequestBody LoginRequest loginRequest) throws CustomUnauthorizedExpection {
-        return new ResponseEntity<>(userService.login(loginRequest.getUsername(), loginRequest.getPassword()), HttpStatus.OK);
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest) throws CustomUnauthorizedExpection {
+        TokenPair pair = userService.login(loginRequest.getUsername(), loginRequest.getPassword());
+        // put refresh token into an HttpOnly, Secure cookie
+        ResponseCookie cookie = ResponseCookie.from("refresh_token", pair.refreshToken())
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/auth/refresh")
+                .maxAge(Duration.ofMillis(jwtRefreshExpirationMs))
+                .build();
+        LoginResponse body = new LoginResponse(
+                pair.accessToken(),
+                jwtExpirationMs,
+                "Bearer"
+                // ? pair.refreshToken() - this would be done for mobile app clients
+        );
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(body);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<LoginResponse> refresh(@CookieValue("refresh_token") String refreshJwt
+                                               // ? @RequestBody(required = false) Map<String,String> body - this would be collected from mobile app clients: {"refresh_token": "..."}
+    ) {
+        TokenPair pair = userService.refresh(refreshJwt);
+
+        ResponseCookie cookie = ResponseCookie.from("refresh_token", pair.refreshToken())
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/auth/refresh")
+                .maxAge(Duration.ofMillis(jwtRefreshExpirationMs))
+                .build();
+
+        LoginResponse body = new LoginResponse(
+                pair.accessToken(),
+                jwtExpirationMs,
+                "Bearer"
+                // ? pair.refreshToken() - this would be done for mobile app clients
+        );
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(body);
     }
 }

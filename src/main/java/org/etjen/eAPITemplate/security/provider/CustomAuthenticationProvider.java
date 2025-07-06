@@ -2,7 +2,6 @@ package org.etjen.eAPITemplate.security.provider;
 
 import org.etjen.eAPITemplate.exception.auth.AccountLockedException;
 import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedExpection;
-import org.etjen.eAPITemplate.repository.UserRepository;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;

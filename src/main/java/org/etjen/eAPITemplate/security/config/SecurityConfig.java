@@ -1,10 +1,14 @@
 package org.etjen.eAPITemplate.security.config;
 
+import org.etjen.eAPITemplate.security.jwt.JwtAuthenticationFilter;
+import org.etjen.eAPITemplate.security.jwt.JwtService;
+import org.etjen.eAPITemplate.security.user.UserDetailsServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.*;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.*;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
@@ -13,6 +17,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.etjen.eAPITemplate.security.provider.CustomAuthenticationProvider;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -21,12 +26,19 @@ import org.springframework.core.env.Environment;
 import java.util.List;
 
 @Configuration
+@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
     private final Environment env;
 
     @Autowired
     public SecurityConfig(Environment env) {
         this.env = env;
+    }
+
+    @Bean
+    public JwtAuthenticationFilter jwtFilter(JwtService jwtService,
+                                             UserDetailsServiceImpl userDetailsService) {
+        return new JwtAuthenticationFilter(jwtService, userDetailsService);
     }
 
     @Bean
@@ -43,7 +55,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
         http
                 // ! cors set to read the allowed-origins from environment e.g. application properties
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -84,7 +96,9 @@ public class SecurityConfig {
                                 "base-uri 'self';"
                         )
                 )
-            );
+            )
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 

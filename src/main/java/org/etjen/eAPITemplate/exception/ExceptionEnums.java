@@ -8,7 +8,10 @@ public enum ExceptionEnums {
     MethodArgumentNotValidExceptionCode(101),
     CustomUnauthorizedExceptionCode(102),
     AccountLockedExceptionCode(103),
-    JwtGenerationExceptionCode(104);
+    JwtGenerationExceptionCode(104),
+    InvalidRefreshTokenExpectionCode(105),
+    ExpiredOrRevokedRefreshTokenExpectionCode(106),
+    AuthorizationDeniedExceptionCode(107);
 
     private final int code;
 

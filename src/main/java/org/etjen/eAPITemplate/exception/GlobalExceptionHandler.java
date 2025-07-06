@@ -3,19 +3,21 @@ package org.etjen.eAPITemplate.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.etjen.eAPITemplate.exception.auth.AccountLockedException;
 import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedExpection;
+import org.etjen.eAPITemplate.exception.auth.jwt.ExpiredOrRevokedRefreshTokenExpection;
+import org.etjen.eAPITemplate.exception.auth.jwt.InvalidRefreshTokenExpection;
 import org.etjen.eAPITemplate.exception.auth.jwt.JwtGenerationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import java.net.URI;
 
-import static org.etjen.eAPITemplate.exception.ExceptionEnums.ExceptionCode;
-import static org.etjen.eAPITemplate.exception.ExceptionEnums.MethodArgumentNotValidExceptionCode;
+import static org.etjen.eAPITemplate.exception.ExceptionEnums.*;
 
 /* ! In an effort to standardize REST API error handling, the IETF devised RFC 7807, which creates a generalized error-handling schema.
 
@@ -79,6 +81,42 @@ public class GlobalExceptionHandler {
         pd.setProperty("hostname", request.getHeader("Host"));
         pd.setProperty("code", JwtGenerationException.code);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenExpection.class)
+    public ResponseEntity<ProblemDetail> handleInvalidRefreshTokenExpection(InvalidRefreshTokenExpection ex, HttpServletRequest request) {
+        logger.warn("Invalid refresh token expection on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Invalid refresh token");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", InvalidRefreshTokenExpection.code);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
+    }
+
+    @ExceptionHandler(ExpiredOrRevokedRefreshTokenExpection.class)
+    public ResponseEntity<ProblemDetail> handleExpiredOrRevokedRefreshTokenExpection(ExpiredOrRevokedRefreshTokenExpection ex, HttpServletRequest request) {
+        logger.warn("Expired or revoked refresh token expection on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Expired or revoked refresh token");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", ExpiredOrRevokedRefreshTokenExpection.code);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
+    }
+
+    @ExceptionHandler(AuthorizationDeniedException.class)
+    public ResponseEntity<ProblemDetail> handleAuthorizationDeniedException(AuthorizationDeniedException ex, HttpServletRequest request) {
+        logger.warn("Authorization denied expection on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("User doesn't have a role to access this resource");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", AuthorizationDeniedExceptionCode.getCode());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(pd);
     }
 
     // ? GLOBAL ----------------------------------------------------------------------------------------------------------------------------------------------------

@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Data
-@ConfigurationProperties(prefix = "security")
+@ConfigurationProperties(prefix = "security.account")
 public class SecurityProperties {
     private int maxFailedAttempts;
     private long lockDurationMs;
