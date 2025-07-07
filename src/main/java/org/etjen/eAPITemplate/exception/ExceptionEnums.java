@@ -12,7 +12,10 @@ public enum ExceptionEnums {
     InvalidRefreshTokenExpectionCode(105),
     ExpiredOrRevokedRefreshTokenExpectionCode(106),
     AuthorizationDeniedExceptionCode(107),
-    MissingRequestCookieExceptionCode(108);
+    MissingRequestCookieExceptionCode(108),
+    RefreshTokenNotFoundExceptionCode(109),
+    RefreshTokensForUserNotFoundExceptionCode(110),
+    UserNotFoundExceptionCode(111);
 
     private final int code;
 

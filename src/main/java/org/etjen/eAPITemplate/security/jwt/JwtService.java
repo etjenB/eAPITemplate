@@ -34,13 +34,14 @@ public class JwtService {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public String generateAccessToken(String username, List<String> roles) throws JwtGenerationException {
+    public String generateAccessToken(String username, List<String> roles, String jti) throws JwtGenerationException {
         try {
             Map<String, Object> claims = new HashMap<>();
             claims.put("roles", roles);
             return Jwts.builder()
                     .setClaims(claims)
                     .setSubject(username)
+                    .setId(jti)
                     .setIssuedAt(new Date(System.currentTimeMillis()))
                     .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
                     .signWith(signingKey, SignatureAlgorithm.HS512)

@@ -1,13 +1,13 @@
 package org.etjen.eAPITemplate.web.controller;
 
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.etjen.eAPITemplate.domain.model.User;
 import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedExpection;
 import org.etjen.eAPITemplate.service.UserService;
 import org.etjen.eAPITemplate.web.payload.auth.LoginRequest;
 import org.etjen.eAPITemplate.web.payload.auth.LoginResponse;
 import org.etjen.eAPITemplate.web.payload.auth.TokenPair;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
@@ -16,7 +16,8 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Duration;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping(value = "/auth", produces = "application/json")
+@RequiredArgsConstructor
 public class AuthController {
     private final UserService userService;
     @Value("${security.jwt.expirationMs}")
@@ -24,10 +25,11 @@ public class AuthController {
     @Value("${security.jwt.refreshExpirationMs}")
     private long jwtRefreshExpirationMs;
 
-    @Autowired
-    public AuthController(UserService userService) {
-        this.userService = userService;
-    }
+// ? don't need this because lombok @RequiredArgsConstructor annotation
+//    @Autowired
+//    public AuthController(UserService userService) {
+//        this.userService = userService;
+//    }
 
     @PostMapping("/register")
     public User register(@Valid @RequestBody User u) {

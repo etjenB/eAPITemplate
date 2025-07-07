@@ -11,6 +11,7 @@ import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedExpection;
 import org.etjen.eAPITemplate.exception.auth.jwt.ExpiredOrRevokedRefreshTokenExpection;
 import org.etjen.eAPITemplate.exception.auth.jwt.InvalidRefreshTokenExpection;
 import org.etjen.eAPITemplate.exception.auth.jwt.JwtGenerationException;
+import org.etjen.eAPITemplate.exception.auth.jwt.RefreshTokenNotFoundException;
 import org.etjen.eAPITemplate.repository.RefreshTokenRepository;
 import org.etjen.eAPITemplate.repository.UserRepository;
 import org.etjen.eAPITemplate.security.config.SecurityProperties;
@@ -62,7 +63,7 @@ public class UserServiceImpl implements UserService {
             throw new InvalidRefreshTokenExpection("Malformed or expired refresh token");
         }
 
-        refreshTokenRepository.revokeByTokenId(jti);
+        refreshTokenRepository.revokeByTokenId(jti).orElseThrow(() -> new RefreshTokenNotFoundException(jti));
     }
 
     @Override
@@ -77,15 +78,15 @@ public class UserServiceImpl implements UserService {
             List<String> roles = p.getAuthorities().stream()
                     .map(GrantedAuthority::getAuthority)
                     .toList();
-            String accessToken = jwtService.generateAccessToken(username, roles);
             String jti = UUID.randomUUID().toString();
+            String accessToken = jwtService.generateAccessToken(username, roles, jti);
             String refreshToken = jwtService.generateRefreshToken(username, jti);
             RefreshToken refreshTokenObject = RefreshToken.builder()
                     .tokenId(jti)
                     .issuedAt(Instant.now())
                     .expiresAt(jwtService.extractExpiration(refreshToken).toInstant())
                     .revoked(false)
-                    .user(userRepository.findByUsername(username))
+                    .user(userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedExpection::new))
                     .ipAddress(RequestContextHolder.currentRequestAttributes() instanceof ServletRequestAttributes sra
                             ? sra.getRequest().getRemoteAddr()
                             : null)
@@ -113,7 +114,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void onLoginFailure(String username) {
-        User user = userRepository.findByUsername(username);
+        User user = userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedExpection::new);
         int attempts = user.getFailedLoginAttempts() + 1;
         user.setFailedLoginAttempts(attempts);
         if (attempts >= securityProperties.getMaxFailedAttempts()) {
@@ -125,7 +126,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void onLoginSuccess(String username) {
-        User user = userRepository.findByUsername(username);
+        User user = userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedExpection::new);
         // reset failed attempts and unlock if needed
         user.setFailedLoginAttempts(0);
         user.setAccountNonLocked(true);
@@ -155,8 +156,8 @@ public class UserServiceImpl implements UserService {
                 .stream().map(Role::getName).toList();
 
         String newJti = UUID.randomUUID().toString();
+        String newAccessToken = jwtService.generateAccessToken(claims.getSubject(), roles, newJti);
         String newRefreshToken = jwtService.generateRefreshToken(claims.getSubject(), newJti);
-        String newAccessToken = jwtService.generateAccessToken(claims.getSubject(), roles);
 
         RefreshToken newRefreshTokenObject = RefreshToken.builder()
                 .tokenId(newJti)

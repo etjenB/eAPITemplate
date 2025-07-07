@@ -7,4 +7,5 @@ import static org.etjen.eAPITemplate.exception.ExceptionEnums.CustomUnauthorized
 public class CustomUnauthorizedExpection extends AuthenticationException {
     public static int code = CustomUnauthorizedExceptionCode.getCode();
     public CustomUnauthorizedExpection(String message) { super(message); }
+    public CustomUnauthorizedExpection() { super("Invalid username or password"); }
 }

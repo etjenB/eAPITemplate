@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.*;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.builders.*;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -68,9 +69,9 @@ public class SecurityConfig {
                 // ! all other paths are only for logged in user
             .authorizeHttpRequests(
                     auth -> auth
-                                                            .requestMatchers("/public/**", "/auth/**", "/actuator/**").permitAll()
+                                                            .requestMatchers("/user/**", "/auth/sessions/**").hasAnyRole("USER","ADMIN")
                                                             .requestMatchers("/admin/**").hasRole("ADMIN")
-                                                            .requestMatchers("/user/**").hasAnyRole("USER","ADMIN")
+                                                            .requestMatchers("/test/public/**", "/auth/**", "/actuator/**").permitAll()
                                                             .anyRequest().authenticated()
             )
             .headers(headers -> headers
@@ -80,7 +81,7 @@ public class SecurityConfig {
                         .maxAgeInSeconds(31536000)
                 )
                 // * 2) X-Content-Type-Options: nosniff
-                .contentTypeOptions(HeadersConfigurer.ContentTypeOptionsConfig::disable)
+                .contentTypeOptions(Customizer.withDefaults())
                 // * 3) X-Frame-Options: DENY
                 .frameOptions(HeadersConfigurer.FrameOptionsConfig::deny)
                 // * 4) CONTENT-SECURITY-POLICY header

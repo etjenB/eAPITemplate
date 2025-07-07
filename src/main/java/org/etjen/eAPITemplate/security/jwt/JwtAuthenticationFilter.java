@@ -1,5 +1,6 @@
 package org.etjen.eAPITemplate.security.jwt;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.*;
@@ -34,11 +35,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = header.substring(7);
             try {
                 String username = jwtService.extractUserName(token);   // may throw ExpiredJwtException
+                String jti = jwtService.extractClaim(token, Claims::getId);
                 var userDetails = userDetailsService.loadUserByUsername(username);
 
                 if (jwtService.validateToken(token, userDetails)) {
                     var auth = new UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.getAuthorities());
+                            userDetails, jti, userDetails.getAuthorities());
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 }
             } catch (ExpiredJwtException ex) {

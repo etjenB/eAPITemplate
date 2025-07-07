@@ -3,9 +3,8 @@ package org.etjen.eAPITemplate.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.etjen.eAPITemplate.exception.auth.AccountLockedException;
 import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedExpection;
-import org.etjen.eAPITemplate.exception.auth.jwt.ExpiredOrRevokedRefreshTokenExpection;
-import org.etjen.eAPITemplate.exception.auth.jwt.InvalidRefreshTokenExpection;
-import org.etjen.eAPITemplate.exception.auth.jwt.JwtGenerationException;
+import org.etjen.eAPITemplate.exception.auth.UserNotFoundException;
+import org.etjen.eAPITemplate.exception.auth.jwt.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -72,6 +71,18 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
 
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleUserNotFoundException(UserNotFoundException ex, HttpServletRequest request) {
+        logger.info("User not found on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Invalid credentials");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", UserNotFoundException.code);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
+    }
+
     @ExceptionHandler(JwtGenerationException.class)
     public ResponseEntity<ProblemDetail> handleJwtGenerationException(JwtGenerationException ex, HttpServletRequest request) {
         logger.error("JWT generation exception on [{}]: {}", request.getRequestURI(), ex.getMessage());
@@ -94,6 +105,30 @@ public class GlobalExceptionHandler {
         pd.setProperty("hostname", request.getHeader("Host"));
         pd.setProperty("code", InvalidRefreshTokenExpection.code);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
+    }
+
+    @ExceptionHandler(RefreshTokenNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleRefreshTokenNotFoundException(RefreshTokenNotFoundException ex, HttpServletRequest request) {
+        logger.info("Refresh token was not found exception on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Refresh token was not found");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", RefreshTokenNotFoundException.code);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(pd);
+    }
+
+    @ExceptionHandler(RefreshTokensForUserNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleRefreshTokensForUserNotFoundException(RefreshTokensForUserNotFoundException ex, HttpServletRequest request) {
+        logger.info("Refresh tokens were not found exception on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Refresh tokens were not found");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", RefreshTokensForUserNotFoundException.code);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(pd);
     }
 
     @ExceptionHandler(ExpiredOrRevokedRefreshTokenExpection.class)

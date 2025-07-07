@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
@@ -25,5 +26,22 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
           SET rt.revoked = true
        WHERE rt.tokenId = :jti
     """)
-    void revokeByTokenId(@Param("jti") String jti);
+    Optional<Void> revokeByTokenId(@Param("jti") String jti);
+    @Modifying
+    @Query("""
+       UPDATE RefreshToken rt
+          SET rt.revoked = true
+       WHERE rt.tokenId = :tokenId
+          AND rt.user.id = :userId
+    """)
+    int revokeByTokenIdAndUserId(@Param("tokenId") String tokenId, @Param("userId") Long userId);
+    @Modifying
+    @Query("""
+       UPDATE RefreshToken rt
+          SET rt.revoked = true
+       WHERE rt.user.id = :userId
+    """)
+    int revokeAllByUserId(@Param("userId") Long userId);
+    Optional<List<RefreshToken>> findByUserId(Long userId);
+    Optional<RefreshToken> findByTokenId(String tokenId);
 }
