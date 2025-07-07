@@ -13,6 +13,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestCookieException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import java.net.URI;
@@ -119,7 +120,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(pd);
     }
 
-    // ? GLOBAL ----------------------------------------------------------------------------------------------------------------------------------------------------
+    // ? SPRING VALIDATIONS ----------------------------------------------------------------------------------------------------------------------------------------------------
+
+    @ExceptionHandler(MissingRequestCookieException.class)
+    public ResponseEntity<ProblemDetail> handleMissingRequestCookieException(MissingRequestCookieException ex, HttpServletRequest request) {
+        logger.warn("Invalid request, cookie was not provided by client on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Cookie was not provided");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", MissingRequestCookieExceptionCode.getCode());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ProblemDetail> handleMethodArgumentNotValidException(MethodArgumentNotValidException ex, HttpServletRequest request) {
@@ -132,6 +145,8 @@ public class GlobalExceptionHandler {
         pd.setProperty("code", MethodArgumentNotValidExceptionCode.getCode());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
+
+    // ? GLOBAL ----------------------------------------------------------------------------------------------------------------------------------------------------
 
     // * Fallback for anything else:
     @ExceptionHandler(Exception.class)

@@ -19,4 +19,11 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
            OR rt.revoked = true
     """)
     int purgeExpiredAndRevoked(@Param("cutoff") Instant cutoff);
+    @Modifying
+    @Query("""
+       UPDATE RefreshToken rt
+          SET rt.revoked = true
+       WHERE rt.tokenId = :jti
+    """)
+    void revokeByTokenId(@Param("jti") String jti);
 }

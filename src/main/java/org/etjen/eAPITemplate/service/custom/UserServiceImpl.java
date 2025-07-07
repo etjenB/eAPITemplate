@@ -1,6 +1,7 @@
 package org.etjen.eAPITemplate.service.custom;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import jakarta.transaction.Transactional;
 import org.etjen.eAPITemplate.domain.model.RefreshToken;
 import org.etjen.eAPITemplate.domain.model.Role;
@@ -26,7 +27,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import java.time.Instant;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -53,6 +53,20 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    public void logout(String refreshToken) {
+        String jti;
+        try {
+            jti = jwtService.extractAllClaims(refreshToken).getId();
+        } catch (JwtException | IllegalArgumentException ex) {
+            throw new InvalidRefreshTokenExpection("Malformed or expired refresh token");
+        }
+
+        refreshTokenRepository.revokeByTokenId(jti);
+    }
+
+    @Override
+    @Transactional
     public TokenPair login(String username, String password) {
         try {
             Authentication auth = authenticationManager.authenticate(

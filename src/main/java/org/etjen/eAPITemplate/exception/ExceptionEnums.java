@@ -11,7 +11,8 @@ public enum ExceptionEnums {
     JwtGenerationExceptionCode(104),
     InvalidRefreshTokenExpectionCode(105),
     ExpiredOrRevokedRefreshTokenExpectionCode(106),
-    AuthorizationDeniedExceptionCode(107);
+    AuthorizationDeniedExceptionCode(107),
+    MissingRequestCookieExceptionCode(108);
 
     private final int code;
 

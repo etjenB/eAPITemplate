@@ -13,7 +13,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.time.Duration;
 
 @RestController
@@ -35,6 +34,29 @@ public class AuthController {
         return userService.save(u);
     }
 
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@CookieValue(value = "refresh_token", required = false) String refreshJwt,
+                                       @RequestHeader(value = "X-Refresh-Token", required = false) String headerRt
+                                       // ? @RequestBody(required = false) Map<String,String> body - this would be collected from mobile app clients: {"refresh_token": "..."}
+    ) {
+        String refreshToken = refreshJwt != null ? refreshJwt : headerRt;
+        if (refreshToken != null) {
+            userService.logout(refreshToken);
+        }
+
+        ResponseCookie delete = ResponseCookie.from("refresh_token", "")
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/auth")
+                .maxAge(0)
+                .build();
+
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, delete.toString())
+                .build();
+    }
+
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest) throws CustomUnauthorizedExpection {
         TokenPair pair = userService.login(loginRequest.getUsername(), loginRequest.getPassword());
@@ -43,7 +65,7 @@ public class AuthController {
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("Strict")
-                .path("/auth/refresh")
+                .path("/auth")
                 .maxAge(Duration.ofMillis(jwtRefreshExpirationMs))
                 .build();
         LoginResponse body = new LoginResponse(
@@ -67,7 +89,7 @@ public class AuthController {
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("Strict")
-                .path("/auth/refresh")
+                .path("/auth")
                 .maxAge(Duration.ofMillis(jwtRefreshExpirationMs))
                 .build();
 
