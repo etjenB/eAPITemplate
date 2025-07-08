@@ -15,7 +15,8 @@ public enum ExceptionEnums {
     MissingRequestCookieExceptionCode(108),
     RefreshTokenNotFoundExceptionCode(109),
     RefreshTokensForUserNotFoundExceptionCode(110),
-    UserNotFoundExceptionCode(111);
+    UserNotFoundExceptionCode(111),
+    ConcurrentSessionLimitExceptionCode(112);
 
     private final int code;
 

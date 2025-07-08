@@ -3,7 +3,7 @@ package org.etjen.eAPITemplate.web.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.etjen.eAPITemplate.domain.model.User;
-import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedExpection;
+import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedException;
 import org.etjen.eAPITemplate.service.UserService;
 import org.etjen.eAPITemplate.web.payload.auth.LoginRequest;
 import org.etjen.eAPITemplate.web.payload.auth.LoginResponse;
@@ -60,8 +60,9 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest) throws CustomUnauthorizedExpection {
-        TokenPair pair = userService.login(loginRequest.getUsername(), loginRequest.getPassword());
+    public ResponseEntity<LoginResponse> login(@RequestParam(name = "revokeOldest", defaultValue = "false", required = false) boolean revokeOldest,
+                                                @Valid @RequestBody LoginRequest loginRequest) throws CustomUnauthorizedException {
+        TokenPair pair = userService.login(loginRequest.getUsername(), loginRequest.getPassword(), revokeOldest);
         // put refresh token into an HttpOnly, Secure cookie
         ResponseCookie cookie = ResponseCookie.from("refresh_token", pair.refreshToken())
                 .httpOnly(true)

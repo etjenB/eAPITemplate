@@ -42,6 +42,16 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
        WHERE rt.user.id = :userId
     """)
     int revokeAllByUserId(@Param("userId") Long userId);
+    Optional<RefreshToken> findFirstByUserIdAndRevokedFalseOrderByIssuedAtAsc(Long userId);
     Optional<List<RefreshToken>> findByUserId(Long userId);
     Optional<RefreshToken> findByTokenId(String tokenId);
+    @Query("""
+        SELECT COUNT(r)
+           FROM RefreshToken r
+        WHERE r.user.id   = :userId
+           AND r.revoked   = false
+           AND r.expiresAt > :now
+    """)
+    long countByUserIdAndRevokedFalseAndExpiresAtAfter(@Param("userId") long userId, @Param("now") Instant now);
+
 }

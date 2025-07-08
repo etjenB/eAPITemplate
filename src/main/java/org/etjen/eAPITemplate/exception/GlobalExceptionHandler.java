@@ -2,7 +2,8 @@ package org.etjen.eAPITemplate.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.etjen.eAPITemplate.exception.auth.AccountLockedException;
-import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedExpection;
+import org.etjen.eAPITemplate.exception.auth.ConcurrentSessionLimitException;
+import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedException;
 import org.etjen.eAPITemplate.exception.auth.UserNotFoundException;
 import org.etjen.eAPITemplate.exception.auth.jwt.*;
 import org.slf4j.Logger;
@@ -46,8 +47,8 @@ public class GlobalExceptionHandler {
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     // ? AUTH ----------------------------------------------------------------------------------------------------------------------------------------------------
-    @ExceptionHandler(CustomUnauthorizedExpection.class)
-    public ResponseEntity<ProblemDetail> handleCustomUnauthorizedExpection(CustomUnauthorizedExpection ex, HttpServletRequest request) {
+    @ExceptionHandler(CustomUnauthorizedException.class)
+    public ResponseEntity<ProblemDetail> handleCustomUnauthorizedExpection(CustomUnauthorizedException ex, HttpServletRequest request) {
         // Log as WARN (since it’s a client‐error/auth failure)
         logger.warn("Unauthorized attempt on [{}]: {}", request.getRequestURI(), ex.getMessage());
         ProblemDetail pd = ProblemDetail
@@ -55,7 +56,7 @@ public class GlobalExceptionHandler {
         pd.setType(URI.create(request.getRequestURI()));
         pd.setTitle("Invalid login input");
         pd.setProperty("hostname", request.getHeader("Host"));
-        pd.setProperty("code", CustomUnauthorizedExpection.code);
+        pd.setProperty("code", CustomUnauthorizedException.code);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
 
@@ -69,6 +70,18 @@ public class GlobalExceptionHandler {
         pd.setProperty("hostname", request.getHeader("Host"));
         pd.setProperty("code", AccountLockedException.code);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
+    }
+
+    @ExceptionHandler(ConcurrentSessionLimitException.class)
+    public ResponseEntity<ProblemDetail> handleConcurrentSessionLimitException(ConcurrentSessionLimitException ex, HttpServletRequest request) {
+        logger.info("Concurrent sessions limit reached on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Concurrent sessions limit reached");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", ConcurrentSessionLimitException.code);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(pd);
     }
 
     @ExceptionHandler(UserNotFoundException.class)
@@ -95,15 +108,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
 
-    @ExceptionHandler(InvalidRefreshTokenExpection.class)
-    public ResponseEntity<ProblemDetail> handleInvalidRefreshTokenExpection(InvalidRefreshTokenExpection ex, HttpServletRequest request) {
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidRefreshTokenExpection(InvalidRefreshTokenException ex, HttpServletRequest request) {
         logger.warn("Invalid refresh token expection on [{}]: {}", request.getRequestURI(), ex.getMessage());
         ProblemDetail pd = ProblemDetail
                 .forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
         pd.setType(URI.create(request.getRequestURI()));
         pd.setTitle("Invalid refresh token");
         pd.setProperty("hostname", request.getHeader("Host"));
-        pd.setProperty("code", InvalidRefreshTokenExpection.code);
+        pd.setProperty("code", InvalidRefreshTokenException.code);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
 
@@ -131,15 +144,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(pd);
     }
 
-    @ExceptionHandler(ExpiredOrRevokedRefreshTokenExpection.class)
-    public ResponseEntity<ProblemDetail> handleExpiredOrRevokedRefreshTokenExpection(ExpiredOrRevokedRefreshTokenExpection ex, HttpServletRequest request) {
+    @ExceptionHandler(ExpiredOrRevokedRefreshTokenException.class)
+    public ResponseEntity<ProblemDetail> handleExpiredOrRevokedRefreshTokenExpection(ExpiredOrRevokedRefreshTokenException ex, HttpServletRequest request) {
         logger.warn("Expired or revoked refresh token expection on [{}]: {}", request.getRequestURI(), ex.getMessage());
         ProblemDetail pd = ProblemDetail
                 .forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
         pd.setType(URI.create(request.getRequestURI()));
         pd.setTitle("Expired or revoked refresh token");
         pd.setProperty("hostname", request.getHeader("Host"));
-        pd.setProperty("code", ExpiredOrRevokedRefreshTokenExpection.code);
+        pd.setProperty("code", ExpiredOrRevokedRefreshTokenException.code);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
 

@@ -7,9 +7,10 @@ import org.etjen.eAPITemplate.domain.model.RefreshToken;
 import org.etjen.eAPITemplate.domain.model.Role;
 import org.etjen.eAPITemplate.domain.model.User;
 import org.etjen.eAPITemplate.exception.auth.AccountLockedException;
-import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedExpection;
-import org.etjen.eAPITemplate.exception.auth.jwt.ExpiredOrRevokedRefreshTokenExpection;
-import org.etjen.eAPITemplate.exception.auth.jwt.InvalidRefreshTokenExpection;
+import org.etjen.eAPITemplate.exception.auth.ConcurrentSessionLimitException;
+import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedException;
+import org.etjen.eAPITemplate.exception.auth.jwt.ExpiredOrRevokedRefreshTokenException;
+import org.etjen.eAPITemplate.exception.auth.jwt.InvalidRefreshTokenException;
 import org.etjen.eAPITemplate.exception.auth.jwt.JwtGenerationException;
 import org.etjen.eAPITemplate.exception.auth.jwt.RefreshTokenNotFoundException;
 import org.etjen.eAPITemplate.repository.RefreshTokenRepository;
@@ -60,20 +61,28 @@ public class UserServiceImpl implements UserService {
         try {
             jti = jwtService.extractAllClaims(refreshToken).getId();
         } catch (JwtException | IllegalArgumentException ex) {
-            throw new InvalidRefreshTokenExpection("Malformed or expired refresh token");
+            throw new InvalidRefreshTokenException("Malformed or expired refresh token");
         }
 
         refreshTokenRepository.revokeByTokenId(jti).orElseThrow(() -> new RefreshTokenNotFoundException(jti));
     }
 
     @Override
-    @Transactional
-    public TokenPair login(String username, String password) {
+    public TokenPair login(String username, String password, boolean revokeOldest) {
         try {
             Authentication auth = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(username, password)
             );
-            this.onLoginSuccess(username);
+            User user = userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedException::new);
+            this.onLoginSuccess(user);
+            long active = refreshTokenRepository.countByUserIdAndRevokedFalseAndExpiresAtAfter(
+                    user.getId(), Instant.now());
+            if (active >= securityProperties.getConcurrentSessionsLimit()) {
+                if (!revokeOldest) {
+                    throw new ConcurrentSessionLimitException(securityProperties.getConcurrentSessionsLimit(), username);
+                }
+                revokeOldestByUserId(user.getId());
+            }
             UserPrincipal p = (UserPrincipal) auth.getPrincipal();
             List<String> roles = p.getAuthorities().stream()
                     .map(GrantedAuthority::getAuthority)
@@ -86,7 +95,7 @@ public class UserServiceImpl implements UserService {
                     .issuedAt(Instant.now())
                     .expiresAt(jwtService.extractExpiration(refreshToken).toInstant())
                     .revoked(false)
-                    .user(userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedExpection::new))
+                    .user(userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedException::new))
                     .ipAddress(RequestContextHolder.currentRequestAttributes() instanceof ServletRequestAttributes sra
                             ? sra.getRequest().getRemoteAddr()
                             : null)
@@ -97,9 +106,12 @@ public class UserServiceImpl implements UserService {
             refreshTokenRepository.save(refreshTokenObject);
             return new TokenPair(accessToken, refreshToken);
         }
-        catch (CustomUnauthorizedExpection ex) {
+        catch (CustomUnauthorizedException ex) {
             this.onLoginFailure(username);
-            throw new CustomUnauthorizedExpection(ex.getMessage());
+            throw new CustomUnauthorizedException(ex.getMessage());
+        }
+        catch (ConcurrentSessionLimitException ex) {
+            throw new ConcurrentSessionLimitException(ex.getMessage());
         }
         catch (AccountLockedException ex) {
             throw new AccountLockedException(ex.getMessage());
@@ -114,7 +126,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void onLoginFailure(String username) {
-        User user = userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedExpection::new);
+        User user = userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedException::new);
         int attempts = user.getFailedLoginAttempts() + 1;
         user.setFailedLoginAttempts(attempts);
         if (attempts >= securityProperties.getMaxFailedAttempts()) {
@@ -125,28 +137,38 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void onLoginSuccess(String username) {
-        User user = userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedExpection::new);
-        // reset failed attempts and unlock if needed
+    public void onLoginSuccess(User user) {
         user.setFailedLoginAttempts(0);
-        user.setAccountNonLocked(true);
-        user.setLockedUntil(null);
+        // unlock if needed
+        if (!user.isAccountNonLocked()) {
+            user.setAccountNonLocked(true);
+            user.setLockedUntil(null);
+        }
         userRepository.save(user);
     }
 
+    public void revokeOldestByUserId(Long userId) {
+        RefreshToken oldest = refreshTokenRepository
+                .findFirstByUserIdAndRevokedFalseOrderByIssuedAtAsc(userId)
+                .orElseThrow(() -> new RefreshTokenNotFoundException("No active tokens"));
+
+        oldest.setRevoked(true);
+        refreshTokenRepository.save(oldest);
+    }
+
     @Transactional
-    public TokenPair refresh(String refreshJwt) throws InvalidRefreshTokenExpection, ExpiredOrRevokedRefreshTokenExpection {
+    public TokenPair refresh(String refreshJwt) throws InvalidRefreshTokenException, ExpiredOrRevokedRefreshTokenException {
         Claims claims;
         try {
             claims = jwtService.extractAllClaims(refreshJwt); // signature + exp checked here
         } catch (Exception ex) {
-            throw new InvalidRefreshTokenExpection("Malformed or expired refresh token");
+            throw new InvalidRefreshTokenException("Malformed or expired refresh token");
         }
         String jti = claims.getId();
         RefreshToken oldRefreshToken = refreshTokenRepository.findAndLockByTokenId(jti)
-                .orElseThrow(() -> new InvalidRefreshTokenExpection("Invalid refresh token"));
+                .orElseThrow(() -> new InvalidRefreshTokenException("Invalid refresh token"));
         if (oldRefreshToken.isRevoked() || oldRefreshToken.getExpiresAt().isBefore(Instant.now())) {
-            throw new ExpiredOrRevokedRefreshTokenExpection("Expired or revoked refresh token");
+            throw new ExpiredOrRevokedRefreshTokenException("Expired or revoked refresh token");
         }
 
         oldRefreshToken.setRevoked(true);

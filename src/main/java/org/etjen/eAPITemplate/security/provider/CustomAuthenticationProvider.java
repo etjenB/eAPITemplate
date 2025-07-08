@@ -2,7 +2,7 @@ package org.etjen.eAPITemplate.security.provider;
 
 import jakarta.annotation.PostConstruct;
 import org.etjen.eAPITemplate.exception.auth.AccountLockedException;
-import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedExpection;
+import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedException;
 import org.etjen.eAPITemplate.exception.auth.UserNotFoundException;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -30,7 +30,7 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
     }
 
     @Override
-    public Authentication authenticate(Authentication auth) throws CustomUnauthorizedExpection, AccountLockedException {
+    public Authentication authenticate(Authentication auth) throws CustomUnauthorizedException, AccountLockedException {
         String username = auth.getName();
         String rawPassword = auth.getCredentials().toString();
 
@@ -44,7 +44,7 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
             user = (UserPrincipal) userDetailsService.loadUserByUsername(username);
         } catch (UserNotFoundException e) {
             passwordEncoder.matches(rawPassword, userNotFoundEncodedPassword);
-            throw new CustomUnauthorizedExpection();
+            throw new CustomUnauthorizedException();
         }
 
         if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now())){
@@ -58,7 +58,7 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
                     user.getAuthorities()
             );
         } else {
-            throw new CustomUnauthorizedExpection();
+            throw new CustomUnauthorizedException();
         }
     }
 

@@ -10,4 +10,5 @@ import org.springframework.stereotype.Component;
 public class SecurityProperties {
     private int maxFailedAttempts;
     private long lockDurationMs;
+    private int concurrentSessionsLimit;
 }
