@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestCookieException;
@@ -169,6 +170,18 @@ public class GlobalExceptionHandler {
     }
 
     // ? SPRING VALIDATIONS ----------------------------------------------------------------------------------------------------------------------------------------------------
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ProblemDetail> handleMissingRequestCookieException(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        logger.warn("Invalid request, failed to deserialize the body of the request on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Request body could not be deserialized");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", HttpMessageNotReadableExceptionCode.getCode());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
+    }
 
     @ExceptionHandler(MissingRequestCookieException.class)
     public ResponseEntity<ProblemDetail> handleMissingRequestCookieException(MissingRequestCookieException ex, HttpServletRequest request) {

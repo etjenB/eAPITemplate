@@ -19,6 +19,7 @@ import org.etjen.eAPITemplate.security.config.SecurityProperties;
 import org.etjen.eAPITemplate.security.jwt.JwtService;
 import org.etjen.eAPITemplate.security.user.UserPrincipal;
 import org.etjen.eAPITemplate.service.UserService;
+import org.etjen.eAPITemplate.web.payload.auth.RegistrationRequest;
 import org.etjen.eAPITemplate.web.payload.auth.TokenPair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -52,6 +53,11 @@ public class UserServiceImpl implements UserService {
     @Override
     public User save(User user) {
         return userRepository.save(user);
+    }
+
+    @Override
+    public void register(RegistrationRequest registrationRequest) {
+
     }
 
     @Override

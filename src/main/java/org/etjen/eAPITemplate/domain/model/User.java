@@ -2,6 +2,7 @@ package org.etjen.eAPITemplate.domain.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.etjen.eAPITemplate.domain.model.enums.AccountStatus;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
@@ -24,6 +25,11 @@ public class User {
     private Instant lockedUntil = null;
     private boolean credentialsNonExpired = true;
     private boolean enabled = true;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AccountStatus status;
+    @Column(nullable = false)
+    private boolean emailVerified = false;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
