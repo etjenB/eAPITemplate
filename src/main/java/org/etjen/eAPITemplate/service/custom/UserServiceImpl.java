@@ -3,9 +3,15 @@ package org.etjen.eAPITemplate.service.custom;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import org.etjen.eAPITemplate.config.properties.security.AccountProperties;
+import org.etjen.eAPITemplate.config.properties.security.EmailVerificationProperties;
+import org.etjen.eAPITemplate.domain.model.EmailVerificationToken;
 import org.etjen.eAPITemplate.domain.model.RefreshToken;
 import org.etjen.eAPITemplate.domain.model.Role;
 import org.etjen.eAPITemplate.domain.model.User;
+import org.etjen.eAPITemplate.domain.model.enums.AccountStatus;
+import org.etjen.eAPITemplate.domain.model.enums.AppRole;
 import org.etjen.eAPITemplate.exception.auth.AccountLockedException;
 import org.etjen.eAPITemplate.exception.auth.ConcurrentSessionLimitException;
 import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedException;
@@ -13,51 +19,59 @@ import org.etjen.eAPITemplate.exception.auth.jwt.ExpiredOrRevokedRefreshTokenExc
 import org.etjen.eAPITemplate.exception.auth.jwt.InvalidRefreshTokenException;
 import org.etjen.eAPITemplate.exception.auth.jwt.JwtGenerationException;
 import org.etjen.eAPITemplate.exception.auth.jwt.RefreshTokenNotFoundException;
+import org.etjen.eAPITemplate.repository.EmailVerificationTokenRepository;
 import org.etjen.eAPITemplate.repository.RefreshTokenRepository;
+import org.etjen.eAPITemplate.repository.RoleRepository;
 import org.etjen.eAPITemplate.repository.UserRepository;
-import org.etjen.eAPITemplate.security.config.SecurityProperties;
+import org.etjen.eAPITemplate.security.auth.RoleCache;
 import org.etjen.eAPITemplate.security.jwt.JwtService;
 import org.etjen.eAPITemplate.security.user.UserPrincipal;
 import org.etjen.eAPITemplate.service.UserService;
 import org.etjen.eAPITemplate.web.payload.auth.RegistrationRequest;
 import org.etjen.eAPITemplate.web.payload.auth.TokenPair;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final EmailVerificationTokenRepository emailVerificationTokenRepository;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
-    private final SecurityProperties securityProperties;
-
-    @Autowired
-    public UserServiceImpl(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository, AuthenticationManager authenticationManager, JwtService jwtService, SecurityProperties securityProperties) {
-        this.userRepository = userRepository;
-        this.refreshTokenRepository = refreshTokenRepository;
-        this.authenticationManager = authenticationManager;
-        this.jwtService = jwtService;
-        this.securityProperties = securityProperties;
-    }
-
-    @Override
-    public User save(User user) {
-        return userRepository.save(user);
-    }
+    private final AccountProperties accountProperties;
+    private final EmailVerificationProperties emailVerificationProperties;
+    private final PasswordEncoder passwordEncoder;
+    private final RoleCache roleCache;
 
     @Override
     public void register(RegistrationRequest registrationRequest) {
+        Role userRole = roleCache.get(AppRole.USER);
+        User user = userRepository.save(User.builder()
+                .username(registrationRequest.username())
+                .email(registrationRequest.email().toLowerCase(Locale.ROOT))
+                .password(passwordEncoder.encode(registrationRequest.password()))
+                .status(AccountStatus.PENDING_VERIFICATION)
+                .roles(Set.of(userRole))
+                .build());
 
+        String token = UUID.randomUUID().toString();
+        Instant expiry = Instant.now().plus(emailVerificationProperties.emailTokenTtl());
+        emailVerificationTokenRepository.save(new EmailVerificationToken(null, token, expiry, false, Instant.now(), user));
+
+        //emailService.sendVerification(user, token);
     }
 
     @Override
@@ -83,9 +97,9 @@ public class UserServiceImpl implements UserService {
             this.onLoginSuccess(user);
             long active = refreshTokenRepository.countByUserIdAndRevokedFalseAndExpiresAtAfter(
                     user.getId(), Instant.now());
-            if (active >= securityProperties.getConcurrentSessionsLimit()) {
+            if (active >= accountProperties.concurrentSessionsLimit()) {
                 if (!revokeOldest) {
-                    throw new ConcurrentSessionLimitException(securityProperties.getConcurrentSessionsLimit(), username);
+                    throw new ConcurrentSessionLimitException(accountProperties.concurrentSessionsLimit(), username);
                 }
                 revokeOldestByUserId(user.getId());
             }
@@ -135,9 +149,9 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedException::new);
         int attempts = user.getFailedLoginAttempts() + 1;
         user.setFailedLoginAttempts(attempts);
-        if (attempts >= securityProperties.getMaxFailedAttempts()) {
+        if (attempts >= accountProperties.maxFailedAttempts()) {
             user.setAccountNonLocked(false);
-            user.setLockedUntil(Instant.now().plusMillis(securityProperties.getLockDurationMs()));
+            user.setLockedUntil(Instant.now().plus(accountProperties.lockDuration()));
         }
         userRepository.save(user);
     }

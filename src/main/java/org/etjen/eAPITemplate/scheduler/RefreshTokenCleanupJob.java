@@ -15,7 +15,7 @@ public class RefreshTokenCleanupJob {
     private static final Logger logger = LoggerFactory.getLogger(RefreshTokenCleanupJob.class);
     private final RefreshTokenRepository refreshTokenRepository;
 
-    @Scheduled(cron = "${data.cleanup.refreshTokens.cron}", zone = "UTC")
+    @Scheduled(cron = "${data.cleanup.refreshTokensCron}", zone = "UTC")
     @Transactional
     public void purge() {
         try {

@@ -1,13 +1,16 @@
 package org.etjen.eAPITemplate.domain.model;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
 import org.etjen.eAPITemplate.domain.model.enums.AccountStatus;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 
 @Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "users")
 public class User {
@@ -19,17 +22,17 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
     private String password;
-    private boolean accountNonExpired = true;
-    private boolean accountNonLocked = true;
-    private Integer failedLoginAttempts = 0;
-    private Instant lockedUntil = null;
-    private boolean credentialsNonExpired = true;
-    private boolean enabled = true;
+    @Builder.Default private boolean accountNonExpired = true;
+    @Builder.Default private boolean accountNonLocked = true;
+    @Builder.Default private Integer failedLoginAttempts = 0;
+    @Builder.Default private Instant lockedUntil = null;
+    @Builder.Default private boolean credentialsNonExpired = true;
+    @Builder.Default private boolean enabled = true;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private AccountStatus status;
     @Column(nullable = false)
-    private boolean emailVerified = false;
+    @Builder.Default private boolean emailVerified = false;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(

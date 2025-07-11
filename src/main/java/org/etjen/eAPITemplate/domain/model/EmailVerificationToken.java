@@ -1,16 +1,16 @@
 package org.etjen.eAPITemplate.domain.model;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import java.time.Instant;
 
 @Entity
+@Builder
 @Table(name = "email_verification_tokens")
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
 public class EmailVerificationToken {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -20,7 +20,7 @@ public class EmailVerificationToken {
     @Column(nullable = false)
     private Instant expiresAt;
     @Column(nullable = false)
-    private boolean used = false;
+    @Builder.Default private boolean used = false;
     @Column(nullable = false)
     private Instant issuedAt;
 

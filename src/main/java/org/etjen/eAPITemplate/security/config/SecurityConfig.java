@@ -1,9 +1,10 @@
 package org.etjen.eAPITemplate.security.config;
 
+import lombok.RequiredArgsConstructor;
+import org.etjen.eAPITemplate.config.properties.http.CorsProperties;
 import org.etjen.eAPITemplate.security.jwt.JwtAuthenticationFilter;
 import org.etjen.eAPITemplate.security.jwt.JwtService;
 import org.etjen.eAPITemplate.security.user.UserDetailsServiceImpl;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.*;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -14,7 +15,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.*;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.etjen.eAPITemplate.security.provider.CustomAuthenticationProvider;
@@ -22,19 +23,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.core.env.Environment;
 
 import java.util.List;
 
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
+@RequiredArgsConstructor
 public class SecurityConfig {
-    private final Environment env;
-
-    @Autowired
-    public SecurityConfig(Environment env) {
-        this.env = env;
-    }
+    private final CorsProperties corsProperties;
 
     @Bean
     public JwtAuthenticationFilter jwtFilter(JwtService jwtService,
@@ -44,7 +40,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(12);
+        return PasswordEncoderFactories.createDelegatingPasswordEncoder(); //Argon2id primary, BCrypt fallback - Spring-Security default as of 6.3 and fares better on GPUs than BCrypt
     }
 
     @Bean
@@ -108,7 +104,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
 
         // * 2) Read the property, split on commas, turn into a List<String>
-        String originsProperty = env.getProperty("app.cors.allowed-origins");
+        String originsProperty = corsProperties.allowedOrigins();
         // ? If the property is missing, default to an empty string to avoid NPE
         if (originsProperty == null) {
             originsProperty = "";

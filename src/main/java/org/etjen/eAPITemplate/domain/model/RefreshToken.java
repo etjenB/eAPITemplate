@@ -28,7 +28,7 @@ public class RefreshToken {
     private Instant expiresAt;
     /** Single-use rotation: once the client swaps this token for a new pair, set revoked = true. */
     @Column(nullable = false)
-    private boolean revoked = false;
+    @Builder.Default private boolean revoked = false;
     /** Optional metadata – useful for auditing or “list my devices” endpoints. */
     @Column(nullable = false)
     private Instant issuedAt;

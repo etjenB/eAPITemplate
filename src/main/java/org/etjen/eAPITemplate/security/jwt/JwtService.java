@@ -6,8 +6,9 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import org.etjen.eAPITemplate.config.properties.security.JwtProperties;
 import org.etjen.eAPITemplate.exception.auth.jwt.JwtGenerationException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import java.security.Key;
@@ -15,18 +16,14 @@ import java.util.*;
 import java.util.function.Function;
 
 @Service
+@RequiredArgsConstructor
 public class JwtService {
-    @Value("${security.jwt.secret}")
-    private String jwtSecret;
-    @Value("${security.jwt.expirationMs}")
-    private long jwtExpirationMs;
-    @Value("${security.jwt.refreshExpirationMs}")
-    private long jwtRefreshExpirationMs;
+    private final JwtProperties jwtProperties;
     private Key signingKey;
 
     @PostConstruct
     private void init() {                  // build the key once
-        signingKey = buildKey(jwtSecret);
+        signingKey = buildKey(jwtProperties.secret());
     }
 
     private Key buildKey(String secret) {
@@ -43,7 +40,7 @@ public class JwtService {
                     .setSubject(username)
                     .setId(jti)
                     .setIssuedAt(new Date(System.currentTimeMillis()))
-                    .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
+                    .setExpiration(new Date(System.currentTimeMillis() + jwtProperties.expiration().toMillis()))
                     .signWith(signingKey, SignatureAlgorithm.HS512)
                     .compact();
         } catch (Exception ex) {
@@ -57,7 +54,7 @@ public class JwtService {
                     .setSubject(username)
                     .setId(jti)
                     .setIssuedAt(new Date(System.currentTimeMillis()))
-                    .setExpiration(new Date(System.currentTimeMillis() + jwtRefreshExpirationMs))
+                    .setExpiration(new Date(System.currentTimeMillis() + jwtProperties.refreshExpiration().toMillis()))
                     .signWith(signingKey, SignatureAlgorithm.HS512)
                     .compact();
         } catch (Exception ex) {

@@ -5,7 +5,7 @@ import org.etjen.eAPITemplate.web.validation.Password;
 import org.etjen.eAPITemplate.web.validation.UniqueEmail;
 import org.etjen.eAPITemplate.web.validation.UniqueUsername;
 
-public record RegistrationRequest(
+public record RegistrationRequest (
         @NotBlank(message = "Username must not be blank.")
         @Size(min = 5, max = 50, message = "Username length must be between 5 and 50.")
         @Pattern(regexp = "^[a-zA-Z0-9_.-]+$")

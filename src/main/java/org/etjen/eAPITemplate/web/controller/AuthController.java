@@ -2,29 +2,25 @@ package org.etjen.eAPITemplate.web.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.etjen.eAPITemplate.config.properties.security.JwtProperties;
 import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedException;
 import org.etjen.eAPITemplate.service.UserService;
 import org.etjen.eAPITemplate.web.payload.auth.LoginRequest;
 import org.etjen.eAPITemplate.web.payload.auth.LoginResponse;
 import org.etjen.eAPITemplate.web.payload.auth.RegistrationRequest;
 import org.etjen.eAPITemplate.web.payload.auth.TokenPair;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.time.Duration;
 
 @RestController
 @RequestMapping(value = "/auth", produces = "application/json")
 @RequiredArgsConstructor
 public class AuthController {
     private final UserService userService;
-    @Value("${security.jwt.expirationMs}")
-    private long jwtExpirationMs;
-    @Value("${security.jwt.refreshExpirationMs}")
-    private long jwtRefreshExpirationMs;
+    private final JwtProperties jwtProperties;
 
     // ? don't need this because lombok @RequiredArgsConstructor annotation
     // @Autowired
@@ -64,18 +60,18 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestParam(name = "revokeOldest", defaultValue = "false", required = false) boolean revokeOldest,
                                                 @Valid @RequestBody LoginRequest loginRequest) throws CustomUnauthorizedException {
-        TokenPair pair = userService.login(loginRequest.getUsername(), loginRequest.getPassword(), revokeOldest);
+        TokenPair pair = userService.login(loginRequest.username(), loginRequest.password(), revokeOldest);
         // put refresh token into an HttpOnly, Secure cookie
         ResponseCookie cookie = ResponseCookie.from("refresh_token", pair.refreshToken())
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("Strict")
                 .path("/auth")
-                .maxAge(Duration.ofMillis(jwtRefreshExpirationMs))
+                .maxAge(jwtProperties.refreshExpiration())
                 .build();
         LoginResponse body = new LoginResponse(
                 pair.accessToken(),
-                jwtExpirationMs,
+                jwtProperties.expiration().toMillis(),
                 "Bearer"
                 // ? pair.refreshToken() - this would be done for mobile app clients
         );
@@ -95,12 +91,12 @@ public class AuthController {
                 .secure(true)
                 .sameSite("Strict")
                 .path("/auth")
-                .maxAge(Duration.ofMillis(jwtRefreshExpirationMs))
+                .maxAge(jwtProperties.refreshExpiration())
                 .build();
 
         LoginResponse body = new LoginResponse(
                 pair.accessToken(),
-                jwtExpirationMs,
+                jwtProperties.expiration().toMillis(),
                 "Bearer"
                 // ? pair.refreshToken() - this would be done for mobile app clients
         );
