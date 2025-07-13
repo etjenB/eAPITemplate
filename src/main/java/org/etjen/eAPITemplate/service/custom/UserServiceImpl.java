@@ -21,11 +21,11 @@ import org.etjen.eAPITemplate.exception.auth.jwt.JwtGenerationException;
 import org.etjen.eAPITemplate.exception.auth.jwt.RefreshTokenNotFoundException;
 import org.etjen.eAPITemplate.repository.EmailVerificationTokenRepository;
 import org.etjen.eAPITemplate.repository.RefreshTokenRepository;
-import org.etjen.eAPITemplate.repository.RoleRepository;
 import org.etjen.eAPITemplate.repository.UserRepository;
 import org.etjen.eAPITemplate.security.auth.RoleCache;
 import org.etjen.eAPITemplate.security.jwt.JwtService;
 import org.etjen.eAPITemplate.security.user.UserPrincipal;
+import org.etjen.eAPITemplate.service.EmailService;
 import org.etjen.eAPITemplate.service.UserService;
 import org.etjen.eAPITemplate.web.payload.auth.RegistrationRequest;
 import org.etjen.eAPITemplate.web.payload.auth.TokenPair;
@@ -51,12 +51,14 @@ public class UserServiceImpl implements UserService {
     private final EmailVerificationTokenRepository emailVerificationTokenRepository;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final EmailService emailService;
     private final AccountProperties accountProperties;
     private final EmailVerificationProperties emailVerificationProperties;
     private final PasswordEncoder passwordEncoder;
     private final RoleCache roleCache;
 
     @Override
+    @Transactional
     public void register(RegistrationRequest registrationRequest) {
         Role userRole = roleCache.get(AppRole.USER);
         User user = userRepository.save(User.builder()
@@ -71,7 +73,7 @@ public class UserServiceImpl implements UserService {
         Instant expiry = Instant.now().plus(emailVerificationProperties.emailTokenTtl());
         emailVerificationTokenRepository.save(new EmailVerificationToken(null, token, expiry, false, Instant.now(), user));
 
-        //emailService.sendVerification(user, token);
+        emailService.sendVerificationMail(user, token);
     }
 
     @Override

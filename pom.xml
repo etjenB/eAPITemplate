@@ -67,6 +67,16 @@
 			<version>3.4.0</version>
 		</dependency>
 		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+			<version>3.5.0</version>
+		</dependency>
+		<dependency>
+			<groupId>io.awspring.cloud</groupId>
+			<artifactId>spring-cloud-aws-starter-ses</artifactId>
+			<version>3.4.0</version>
+		</dependency>
+		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>
 			<version>0.12.6</version>
@@ -154,6 +164,14 @@
 				<groupId>io.sentry</groupId>
 				<artifactId>sentry-bom</artifactId>
 				<version>${sentry.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<!-- keeps every Spring-Cloud-AWS module on the same 3.4.x level -->
+			<dependency>
+				<groupId>io.awspring.cloud</groupId>
+				<artifactId>spring-cloud-aws-dependencies</artifactId>
+				<version>3.4.0</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
