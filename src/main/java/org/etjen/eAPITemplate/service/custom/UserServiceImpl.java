@@ -12,13 +12,8 @@ import org.etjen.eAPITemplate.domain.model.Role;
 import org.etjen.eAPITemplate.domain.model.User;
 import org.etjen.eAPITemplate.domain.model.enums.AccountStatus;
 import org.etjen.eAPITemplate.domain.model.enums.AppRole;
-import org.etjen.eAPITemplate.exception.auth.AccountLockedException;
-import org.etjen.eAPITemplate.exception.auth.ConcurrentSessionLimitException;
-import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedException;
-import org.etjen.eAPITemplate.exception.auth.jwt.ExpiredOrRevokedRefreshTokenException;
-import org.etjen.eAPITemplate.exception.auth.jwt.InvalidRefreshTokenException;
-import org.etjen.eAPITemplate.exception.auth.jwt.JwtGenerationException;
-import org.etjen.eAPITemplate.exception.auth.jwt.RefreshTokenNotFoundException;
+import org.etjen.eAPITemplate.exception.auth.*;
+import org.etjen.eAPITemplate.exception.auth.jwt.*;
 import org.etjen.eAPITemplate.repository.EmailVerificationTokenRepository;
 import org.etjen.eAPITemplate.repository.RefreshTokenRepository;
 import org.etjen.eAPITemplate.repository.UserRepository;
@@ -74,6 +69,23 @@ public class UserServiceImpl implements UserService {
         emailVerificationTokenRepository.save(new EmailVerificationToken(null, token, expiry, false, Instant.now(), user));
 
         emailService.sendVerificationMail(user, token);
+    }
+
+    @Override
+    @Transactional
+    public void verify(String token) {
+        EmailVerificationToken existingToken = emailVerificationTokenRepository.findByToken(token).orElseThrow(() -> new EmailVerificationTokenNotFoundException(token));
+
+        if (existingToken.isUsed()) return;
+
+        if (existingToken.getExpiresAt().isBefore(Instant.now())) {
+            throw new EmailVerificationTokenExpiredException(token);
+        }
+
+        User user = existingToken.getUser();
+        user.setStatus(AccountStatus.ACTIVE);
+        user.setEmailVerified(true);
+        existingToken.setUsed(true);
     }
 
     @Override

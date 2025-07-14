@@ -12,4 +12,5 @@ public interface UserService {
     void onLoginFailure(String username);
     void onLoginSuccess(User user);
     TokenPair refresh(String refreshJwt);
+    void verify(String token);
 }

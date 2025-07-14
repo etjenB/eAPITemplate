@@ -34,6 +34,12 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
+    @GetMapping("/verify")
+    public ResponseEntity<Void> verify(@RequestParam String token) {
+        userService.verify(token);
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@CookieValue(value = "refresh_token", required = false) String refreshJwt,
                                        @RequestHeader(value = "X-Refresh-Token", required = false) String headerRt

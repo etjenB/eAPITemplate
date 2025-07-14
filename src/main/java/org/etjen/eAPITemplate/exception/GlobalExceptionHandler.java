@@ -1,10 +1,7 @@
 package org.etjen.eAPITemplate.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
-import org.etjen.eAPITemplate.exception.auth.AccountLockedException;
-import org.etjen.eAPITemplate.exception.auth.ConcurrentSessionLimitException;
-import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedException;
-import org.etjen.eAPITemplate.exception.auth.UserNotFoundException;
+import org.etjen.eAPITemplate.exception.auth.*;
 import org.etjen.eAPITemplate.exception.auth.jwt.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -154,6 +151,30 @@ public class GlobalExceptionHandler {
         pd.setTitle("Expired or revoked refresh token");
         pd.setProperty("hostname", request.getHeader("Host"));
         pd.setProperty("code", ExpiredOrRevokedRefreshTokenException.code);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
+    }
+
+    @ExceptionHandler(EmailVerificationTokenNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleEmailVerificationTokenNotFoundException(EmailVerificationTokenNotFoundException ex, HttpServletRequest request) {
+        logger.info("Email verification token was not found exception on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Email verification token was not found");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", EmailVerificationTokenNotFoundException.code);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(pd);
+    }
+
+    @ExceptionHandler(EmailVerificationTokenExpiredException.class)
+    public ResponseEntity<ProblemDetail> handleEmailVerificationTokenExpiredException(EmailVerificationTokenExpiredException ex, HttpServletRequest request) {
+        logger.info("Email verification token expired exception on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Email verification token expired");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", EmailVerificationTokenExpiredException.code);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
 

@@ -1,7 +1,6 @@
 package org.etjen.eAPITemplate.exception;
 
 import lombok.Getter;
-import org.springframework.http.converter.HttpMessageNotReadableException;
 
 @Getter
 public enum ExceptionEnums {
@@ -18,7 +17,9 @@ public enum ExceptionEnums {
     RefreshTokensForUserNotFoundExceptionCode(110),
     UserNotFoundExceptionCode(111),
     ConcurrentSessionLimitExceptionCode(112),
-    HttpMessageNotReadableExceptionCode(113);
+    HttpMessageNotReadableExceptionCode(113),
+    EmailVerificationTokenNotFoundExceptionCode(114),
+    EmailVerificationTokenExpiredExceptionCode(115);
 
     private final int code;
 
