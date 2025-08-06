@@ -33,10 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import java.time.Instant;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -55,6 +52,23 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public void register(RegistrationRequest registrationRequest) {
+        String token = UUID.randomUUID().toString();
+        Instant expiry = Instant.now().plus(emailVerificationProperties.emailTokenTtl());
+
+        Optional<User> existingUser = userRepository.findByEmailIgnoreCase(registrationRequest.email());
+        if (existingUser.isPresent()) {
+            switch (existingUser.get().getStatus()) {
+                case PENDING_VERIFICATION -> {
+                    emailVerificationTokenRepository.save(new EmailVerificationToken(null, token, expiry, false, Instant.now(), existingUser.get()));
+                    emailService.sendVerificationMail(existingUser.get(), token);
+                    return;
+                }
+                case SUSPENDED -> throw new AccountSuspendedException();
+                case DELETED -> throw new AccountDeletedException();
+                default -> throw new DuplicateEmailException();
+            }
+        }
+
         Role userRole = roleCache.get(AppRole.USER);
         User user = userRepository.save(User.builder()
                 .username(registrationRequest.username())
@@ -64,10 +78,7 @@ public class UserServiceImpl implements UserService {
                 .roles(Set.of(userRole))
                 .build());
 
-        String token = UUID.randomUUID().toString();
-        Instant expiry = Instant.now().plus(emailVerificationProperties.emailTokenTtl());
         emailVerificationTokenRepository.save(new EmailVerificationToken(null, token, expiry, false, Instant.now(), user));
-
         emailService.sendVerificationMail(user, token);
     }
 

@@ -19,7 +19,10 @@ public enum ExceptionEnums {
     ConcurrentSessionLimitExceptionCode(112),
     HttpMessageNotReadableExceptionCode(113),
     EmailVerificationTokenNotFoundExceptionCode(114),
-    EmailVerificationTokenExpiredExceptionCode(115);
+    EmailVerificationTokenExpiredExceptionCode(115),
+    AccountSuspendedExceptionCode(116),
+    AccountDeletedExceptionCode(117),
+    DuplicateEmailExceptionCode(118);
 
     private final int code;
 

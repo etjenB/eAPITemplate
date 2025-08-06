@@ -5,6 +5,7 @@ import org.etjen.eAPITemplate.exception.auth.*;
 import org.etjen.eAPITemplate.exception.auth.jwt.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -68,6 +69,42 @@ public class GlobalExceptionHandler {
         pd.setProperty("hostname", request.getHeader("Host"));
         pd.setProperty("code", AccountLockedException.code);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
+    }
+
+    @ExceptionHandler(AccountSuspendedException.class)
+    public ResponseEntity<ProblemDetail> handleAccountSuspendedException(AccountSuspendedException ex, HttpServletRequest request) {
+        logger.warn("Account is suspended on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.LOCKED, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Account is suspended");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", AccountSuspendedException.code);
+        return ResponseEntity.status(HttpStatus.LOCKED).body(pd);
+    }
+
+    @ExceptionHandler(AccountDeletedException.class)
+    public ResponseEntity<ProblemDetail> handleAccountDeletedException(AccountDeletedException ex, HttpServletRequest request) {
+        logger.warn("Account is deleted on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.GONE, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Account is deleted");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", AccountDeletedException.code);
+        return ResponseEntity.status(HttpStatus.GONE).body(pd);
+    }
+
+    @ExceptionHandler(DuplicateEmailException.class)
+    public ResponseEntity<ProblemDetail> handleDuplicateEmailException(DuplicateEmailException ex, HttpServletRequest request) {
+        logger.warn("Email is already used on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Email is already in use");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", DuplicateEmailException.code);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(pd);
     }
 
     @ExceptionHandler(ConcurrentSessionLimitException.class)
@@ -226,6 +263,20 @@ public class GlobalExceptionHandler {
         pd.setProperty("hostname", request.getHeader("Host"));
         pd.setProperty("code", MethodArgumentNotValidExceptionCode.getCode());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
+    }
+
+    // ? DATABASE ----------------------------------------------------------------------------------------------------------------------------------------------------
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ProblemDetail> handleDataIntegrityViolationException(DataIntegrityViolationException ex, HttpServletRequest request) {
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Data integrity violation exception");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", ExceptionCode.getCode());
+        logger.error("Data integrity violation exception at [{}]", request.getRequestURI(), ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(pd);
     }
 
     // ? GLOBAL ----------------------------------------------------------------------------------------------------------------------------------------------------
