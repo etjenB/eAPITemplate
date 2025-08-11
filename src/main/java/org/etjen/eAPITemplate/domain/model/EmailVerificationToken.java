@@ -6,6 +6,7 @@ import java.time.Instant;
 
 @Entity
 @Builder
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "email_verification_tokens")
 @Getter
 @Setter
@@ -14,6 +15,7 @@ import java.time.Instant;
 public class EmailVerificationToken {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
     @Column(nullable = false, unique = true)
     private String token; // UUIDv4

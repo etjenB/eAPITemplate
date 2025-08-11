@@ -1,10 +1,7 @@
 package org.etjen.eAPITemplate.domain.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.Instant;
 
@@ -13,6 +10,7 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "refresh_tokens",
         indexes = {
                 @Index(name = "idx_rt_token_id", columnList = "token_id", unique = true),
@@ -21,6 +19,7 @@ import java.time.Instant;
 public class RefreshToken {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
     @Column(nullable = false, unique = true, length = 36)
     private String tokenId;
