@@ -109,7 +109,10 @@ public class UserServiceImpl implements UserService {
             throw new InvalidRefreshTokenException("Malformed or expired refresh token");
         }
 
-        refreshTokenRepository.revokeByTokenId(jti).orElseThrow(() -> new RefreshTokenNotFoundException(jti));
+        int updated = refreshTokenRepository.revokeByTokenId(jti);
+        if (updated == 0) {
+            throw new RefreshTokenNotFoundException(jti);
+        }
     }
 
     @Override

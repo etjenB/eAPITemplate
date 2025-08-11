@@ -1,5 +1,8 @@
 package org.etjen.eAPITemplate.unit.service;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.impl.DefaultClaims;
 import org.etjen.eAPITemplate.config.properties.security.AccountProperties;
 import org.etjen.eAPITemplate.config.properties.security.EmailVerificationProperties;
 import org.etjen.eAPITemplate.domain.model.EmailVerificationToken;
@@ -8,6 +11,8 @@ import org.etjen.eAPITemplate.domain.model.User;
 import org.etjen.eAPITemplate.domain.model.enums.AccountStatus;
 import org.etjen.eAPITemplate.domain.model.enums.AppRole;
 import org.etjen.eAPITemplate.exception.auth.*;
+import org.etjen.eAPITemplate.exception.auth.jwt.InvalidRefreshTokenException;
+import org.etjen.eAPITemplate.exception.auth.jwt.RefreshTokenNotFoundException;
 import org.etjen.eAPITemplate.repository.EmailVerificationTokenRepository;
 import org.etjen.eAPITemplate.repository.RefreshTokenRepository;
 import org.etjen.eAPITemplate.repository.UserRepository;
@@ -26,6 +31,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -70,7 +77,9 @@ public class UserServiceTests {
     private final String HASHED_DEFAULT_PASSWORD = "$2a$10$FMqByHgNfU/iy2DBubUcpOv29O8sdUubtwLBQGQapCe3AHd3rxo1m";
     private final String DEFAULT_USERNAME = "user";
     private final String DEFAULT_EMAIL = "user@gmail.com";
-    private final String DEFAULT_TOKEN = "103cda9b-95c4-4f6f-885e-b30fa2f382fa";
+    private final String DEFAULT_EMAIL_TOKEN = "103cda9b-95c4-4f6f-885e-b30fa2f382fa";
+    private final String DEFAULT_REFRESH_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJ1c2VyYiIsImp0aSI6Ijg1ZTUxNzBmLWI3YWItNDdiNy1iNTdhLWYzM2EzNGViMTE3NSIsImlhdCI6MTc1NDQ4MjcyMywiZXhwIjoxNzU5NjY2NzIzfQ.IBZTGjR2nCwr7K36hOoYeoQGhh90wENRSmLmvkWKTK58Dtmt3ghqpEZBGrpbKvPJctZlVe9y0RKt-HT5PQ-mXg";
+    private final String DEFAULT_RT_JTI = "85e5170f-b7ab-47b7-b57a-f33a34eb1175";
 
     @BeforeEach
     void setUp() {
@@ -258,7 +267,7 @@ public class UserServiceTests {
                 .build();
         EmailVerificationToken emailVerificationToken = EmailVerificationToken.builder()
                 .id(1L)
-                .token(DEFAULT_TOKEN)
+                .token(DEFAULT_EMAIL_TOKEN)
                 .expiresAt(Instant.now().plus(Duration.ofHours(24)))
                 .used(false)
                 .issuedAt(Instant.now())
@@ -286,7 +295,7 @@ public class UserServiceTests {
         // when
 
         // then
-        assertThrowsExactly(EmailVerificationTokenNotFoundException.class, () -> userServiceImpl.verify(DEFAULT_TOKEN));
+        assertThrowsExactly(EmailVerificationTokenNotFoundException.class, () -> userServiceImpl.verify(DEFAULT_EMAIL_TOKEN));
 
         verify(emailVerificationTokenRepository, times(1)).findByToken(any());
         verifyNoMoreInteractions(emailVerificationTokenRepository);
@@ -306,7 +315,7 @@ public class UserServiceTests {
                 .build();
         EmailVerificationToken emailVerificationToken = EmailVerificationToken.builder()
                 .id(1L)
-                .token(DEFAULT_TOKEN)
+                .token(DEFAULT_EMAIL_TOKEN)
                 .expiresAt(Instant.now().minus(Duration.ofHours(1)))
                 .used(false)
                 .issuedAt(Instant.now().minus(Duration.ofHours(24)))
@@ -345,7 +354,7 @@ public class UserServiceTests {
                 .build();
         EmailVerificationToken emailVerificationToken = EmailVerificationToken.builder()
                 .id(1L)
-                .token(DEFAULT_TOKEN)
+                .token(DEFAULT_EMAIL_TOKEN)
                 .expiresAt(Instant.now().minus(Duration.ofHours(1)))
                 .used(true)
                 .issuedAt(Instant.now().minus(Duration.ofHours(24)))
@@ -368,5 +377,62 @@ public class UserServiceTests {
         assertEquals(statusBefore, user.getStatus());
         assertEquals(verifiedBefore, user.isEmailVerified());
         assertEquals(usedBefore, emailVerificationToken.isUsed());
+    }
+
+    // ! logout
+
+    @Test
+    void givenValidRefreshToken_whenLogout_thenRevokeToken() {
+        // given
+        String refreshToken = DEFAULT_REFRESH_TOKEN;
+        String jti = DEFAULT_RT_JTI;
+        HashMap<String, String> claimsMap = new HashMap<>();
+        claimsMap.put("jti", jti);
+        DefaultClaims defaultClaims = new DefaultClaims(claimsMap);
+        BDDMockito.given(jwtService.extractAllClaims(refreshToken)).willReturn(defaultClaims);
+        BDDMockito.given(refreshTokenRepository.revokeByTokenId(jti)).willReturn(1);
+
+        // when
+        assertDoesNotThrow(() -> userServiceImpl.logout(refreshToken));
+
+        // then
+        verify(jwtService).extractAllClaims(refreshToken);
+        verify(refreshTokenRepository).revokeByTokenId(jti);
+        verifyNoMoreInteractions(refreshTokenRepository);
+    }
+
+    @Test
+    void givenInvalidRefreshToken_whenLogout_thenThrowInvalidRefreshTokenException() {
+        // given
+        String refreshToken = "invalid";
+        BDDMockito.given(jwtService.extractAllClaims(refreshToken)).willThrow(JwtException.class);
+
+        // when
+
+        // then
+        assertThrows(InvalidRefreshTokenException.class, () -> userServiceImpl.logout(refreshToken));
+        verify(jwtService).extractAllClaims(refreshToken);
+        verifyNoInteractions(refreshTokenRepository);
+    }
+
+    @Test
+    void givenNonExistingRefreshToken_whenLogout_thenThrowRefreshTokenNotFoundException() {
+        // given
+        String refreshToken = DEFAULT_REFRESH_TOKEN;
+        String jti = DEFAULT_RT_JTI;
+        HashMap<String, String> claimsMap = new HashMap<>();
+        claimsMap.put("jti", jti);
+        DefaultClaims defaultClaims = new DefaultClaims(claimsMap);
+        BDDMockito.given(jwtService.extractAllClaims(refreshToken)).willReturn(defaultClaims);
+        BDDMockito.given(refreshTokenRepository.revokeByTokenId(jti)).willReturn(0);
+
+        // when
+
+        // then
+        assertThrows(RefreshTokenNotFoundException.class, () -> userServiceImpl.logout(refreshToken));
+        verify(jwtService).extractAllClaims(refreshToken);
+        verifyNoMoreInteractions(jwtService);
+        verify(refreshTokenRepository).revokeByTokenId(jti);
+        verifyNoMoreInteractions(refreshTokenRepository);
     }
 }

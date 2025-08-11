@@ -26,7 +26,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
           SET rt.revoked = true
        WHERE rt.tokenId = :jti
     """)
-    Optional<Void> revokeByTokenId(@Param("jti") String jti);
+    int revokeByTokenId(@Param("jti") String jti);
     @Modifying
     @Query("""
        UPDATE RefreshToken rt
