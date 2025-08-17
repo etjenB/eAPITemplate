@@ -1,11 +1,11 @@
 package org.etjen.eAPITemplate.unit.service;
 
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.impl.DefaultClaims;
 import org.etjen.eAPITemplate.config.properties.security.AccountProperties;
 import org.etjen.eAPITemplate.config.properties.security.EmailVerificationProperties;
 import org.etjen.eAPITemplate.domain.model.EmailVerificationToken;
+import org.etjen.eAPITemplate.domain.model.RefreshToken;
 import org.etjen.eAPITemplate.domain.model.Role;
 import org.etjen.eAPITemplate.domain.model.User;
 import org.etjen.eAPITemplate.domain.model.enums.AccountStatus;
@@ -21,20 +21,22 @@ import org.etjen.eAPITemplate.security.jwt.JwtService;
 import org.etjen.eAPITemplate.service.EmailService;
 import org.etjen.eAPITemplate.service.custom.UserServiceImpl;
 import org.etjen.eAPITemplate.web.payload.auth.RegistrationRequest;
+import org.etjen.eAPITemplate.web.payload.auth.TokenPair;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -72,6 +74,8 @@ public class UserServiceTests {
     ArgumentCaptor<User> mailedUserCaptor;
     @Captor
     ArgumentCaptor<String> stringTokenCaptor;
+    @Captor
+    ArgumentCaptor<RefreshToken> refreshTokenCaptor;
     private Role roleUser;
     private final String DEFAULT_PASSWORD = "Corners8829%";
     private final String HASHED_DEFAULT_PASSWORD = "$2a$10$FMqByHgNfU/iy2DBubUcpOv29O8sdUubtwLBQGQapCe3AHd3rxo1m";
@@ -80,12 +84,26 @@ public class UserServiceTests {
     private final String DEFAULT_EMAIL_TOKEN = "103cda9b-95c4-4f6f-885e-b30fa2f382fa";
     private final String DEFAULT_REFRESH_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJ1c2VyYiIsImp0aSI6Ijg1ZTUxNzBmLWI3YWItNDdiNy1iNTdhLWYzM2EzNGViMTE3NSIsImlhdCI6MTc1NDQ4MjcyMywiZXhwIjoxNzU5NjY2NzIzfQ.IBZTGjR2nCwr7K36hOoYeoQGhh90wENRSmLmvkWKTK58Dtmt3ghqpEZBGrpbKvPJctZlVe9y0RKt-HT5PQ-mXg";
     private final String DEFAULT_RT_JTI = "85e5170f-b7ab-47b7-b57a-f33a34eb1175";
+    private final String DEFAULT_ACCESS_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlcyI6WyJST0xFX1VTRVIiXSwic3ViIjoidXNlcmIiLCJqdGkiOiI1YzYzYzdlYi01ZDFjLTRkYWYtODIwYS1kMjgwMzIwMDU1NDgiLCJpYXQiOjE3NTU0NDkwMzcsImV4cCI6MTc1NTQ1MDIzN30.xQIiKft8OKxySzrmp3vOPI81Dz9-OdtxH1EG9BftFPvLRrkWcJs6fubwWsG_o92-r5vp41qyus9RsE7YEX_a6g";
 
     @BeforeEach
     void setUp() {
         roleUser = new Role();
         roleUser.setId(1);
         roleUser.setName("ROLE_USER");
+    }
+
+    @BeforeEach
+    void bindRequest() {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setRemoteAddr("127.0.0.1");
+        req.addHeader("User-Agent", "JUnit");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(req));
+    }
+
+    @AfterEach
+    void clearRequest() {
+        RequestContextHolder.resetRequestAttributes();
     }
 
     // ! register
@@ -384,20 +402,18 @@ public class UserServiceTests {
     @Test
     void givenValidRefreshToken_whenLogout_thenRevokeToken() {
         // given
-        String refreshToken = DEFAULT_REFRESH_TOKEN;
-        String jti = DEFAULT_RT_JTI;
         HashMap<String, String> claimsMap = new HashMap<>();
-        claimsMap.put("jti", jti);
+        claimsMap.put("jti", DEFAULT_RT_JTI);
         DefaultClaims defaultClaims = new DefaultClaims(claimsMap);
-        BDDMockito.given(jwtService.extractAllClaims(refreshToken)).willReturn(defaultClaims);
-        BDDMockito.given(refreshTokenRepository.revokeByTokenId(jti)).willReturn(1);
+        BDDMockito.given(jwtService.extractAllClaims(DEFAULT_REFRESH_TOKEN)).willReturn(defaultClaims);
+        BDDMockito.given(refreshTokenRepository.revokeByTokenId(DEFAULT_RT_JTI)).willReturn(1);
 
         // when
-        assertDoesNotThrow(() -> userServiceImpl.logout(refreshToken));
+        assertDoesNotThrow(() -> userServiceImpl.logout(DEFAULT_REFRESH_TOKEN));
 
         // then
-        verify(jwtService).extractAllClaims(refreshToken);
-        verify(refreshTokenRepository).revokeByTokenId(jti);
+        verify(jwtService).extractAllClaims(DEFAULT_REFRESH_TOKEN);
+        verify(refreshTokenRepository).revokeByTokenId(DEFAULT_RT_JTI);
         verifyNoMoreInteractions(refreshTokenRepository);
     }
 
@@ -418,21 +434,88 @@ public class UserServiceTests {
     @Test
     void givenNonExistingRefreshToken_whenLogout_thenThrowRefreshTokenNotFoundException() {
         // given
-        String refreshToken = DEFAULT_REFRESH_TOKEN;
-        String jti = DEFAULT_RT_JTI;
         HashMap<String, String> claimsMap = new HashMap<>();
-        claimsMap.put("jti", jti);
+        claimsMap.put("jti", DEFAULT_RT_JTI);
         DefaultClaims defaultClaims = new DefaultClaims(claimsMap);
-        BDDMockito.given(jwtService.extractAllClaims(refreshToken)).willReturn(defaultClaims);
-        BDDMockito.given(refreshTokenRepository.revokeByTokenId(jti)).willReturn(0);
+        BDDMockito.given(jwtService.extractAllClaims(DEFAULT_REFRESH_TOKEN)).willReturn(defaultClaims);
+        BDDMockito.given(refreshTokenRepository.revokeByTokenId(DEFAULT_RT_JTI)).willReturn(0);
 
         // when
 
         // then
-        assertThrows(RefreshTokenNotFoundException.class, () -> userServiceImpl.logout(refreshToken));
-        verify(jwtService).extractAllClaims(refreshToken);
+        assertThrows(RefreshTokenNotFoundException.class, () -> userServiceImpl.logout(DEFAULT_REFRESH_TOKEN));
+        verify(jwtService).extractAllClaims(DEFAULT_REFRESH_TOKEN);
         verifyNoMoreInteractions(jwtService);
-        verify(refreshTokenRepository).revokeByTokenId(jti);
+        verify(refreshTokenRepository).revokeByTokenId(DEFAULT_RT_JTI);
         verifyNoMoreInteractions(refreshTokenRepository);
+    }
+
+    // ! login
+
+    @Test
+    void givenValidLoginRequest_whenLogin_thenGenerateSaveAndReturnTokens() {
+        // given
+
+
+        // when
+
+
+        // then
+
+    }
+
+    // ! refresh
+
+    @Test
+    void givenValidRefreshToken_whenRefresh_thenGenerateSaveAndReturnNewTokens() {
+        // given
+        HashMap<String, String> claimsMap = new HashMap<>();
+        claimsMap.put("jti", DEFAULT_RT_JTI);
+        User user = User.builder()
+                .id(1L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD)
+                .status(AccountStatus.PENDING_VERIFICATION)
+                .roles(Set.of(roleUser))
+                .build();
+        claimsMap.put("sub", user.getUsername());
+        DefaultClaims defaultClaims = new DefaultClaims(claimsMap);
+        BDDMockito.given(jwtService.extractAllClaims(any(String.class))).willReturn(defaultClaims);
+        RefreshToken foundRefreshToken = RefreshToken.builder()
+                .id(1L)
+                .tokenId(DEFAULT_RT_JTI)
+                .expiresAt(Instant.now().plus(Duration.ofDays(59)))
+                .revoked(false)
+                .issuedAt(Instant.now().minus(Duration.ofDays(1)))
+                .ipAddress("0:0:0:0:0:0:0:1")
+                .userAgent("PostmanRuntime/7.44.1")
+                .user(user)
+                .build();
+        BDDMockito.given(refreshTokenRepository.findAndLockByTokenId(DEFAULT_RT_JTI)).willReturn(Optional.of(foundRefreshToken));
+        BDDMockito.given(jwtService.generateAccessToken(any(String.class), anyList(), any(String.class))).willReturn(DEFAULT_ACCESS_TOKEN);
+        String newRefreshToken = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJ1c2VyYiIsImp0aSI6IjVjNjNjN2ViLTVkMWMtNGRhZi04MjBhLWQyODAzMjAwNTU0OCIsImlhdCI6MTc1NTQ0OTAzNywiZXhwIjoxNzYwNjMzMDM3fQ.qtU_MriFErxcubBF0_WhqrZ02VcUoHxUaL3E0LUE5O-PNQHuJXiCuGZDsXwqS8sVLcS8qT-ZqqNP8rAGP8nSjA";
+        BDDMockito.given(jwtService.generateRefreshToken(any(String.class), any(String.class))).willReturn(newRefreshToken);
+        BDDMockito.given(jwtService.extractExpiration(any(String.class))).willReturn(Date.from(Instant.now().plus(Duration.ofDays(60))));
+
+        // when
+        TokenPair pair = userServiceImpl.refresh(DEFAULT_REFRESH_TOKEN);
+
+        // then
+        assertTrue(foundRefreshToken.isRevoked());
+
+        assertEquals(DEFAULT_ACCESS_TOKEN, pair.accessToken());
+        assertEquals(newRefreshToken, pair.refreshToken());
+
+        ArgumentCaptor<String> jtiAccessCap  = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> jtiRefreshCap = ArgumentCaptor.forClass(String.class);
+        verify(jwtService, times(1)).generateAccessToken(anyString(), anyList(), jtiAccessCap.capture());
+        verify(jwtService, times(1)).generateRefreshToken(eq(user.getUsername()), jtiRefreshCap.capture());
+
+        verify(refreshTokenRepository, atMostOnce()).save(refreshTokenCaptor.capture());
+        var savedToken = refreshTokenCaptor.getValue();
+        assertNotEquals(foundRefreshToken.getTokenId(), savedToken.getTokenId());
+        assertEquals(savedToken.getTokenId(), jtiAccessCap.getValue());
+        assertEquals(savedToken.getTokenId(), jtiRefreshCap.getValue());
     }
 }

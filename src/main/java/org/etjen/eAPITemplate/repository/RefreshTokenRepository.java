@@ -11,7 +11,10 @@ import java.util.Optional;
 
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select r from RefreshToken r where r.tokenId = :tokenId")
+    @Query("""
+        SELECT r FROM RefreshToken r
+        WHERE r.tokenId = :tokenId
+    """)
     Optional<RefreshToken> findAndLockByTokenId(@Param("tokenId") String tokenId);
     @Modifying
     @Query("""
