@@ -11,6 +11,7 @@ import org.etjen.eAPITemplate.domain.model.User;
 import org.etjen.eAPITemplate.domain.model.enums.AccountStatus;
 import org.etjen.eAPITemplate.domain.model.enums.AppRole;
 import org.etjen.eAPITemplate.exception.auth.*;
+import org.etjen.eAPITemplate.exception.auth.jwt.ExpiredOrRevokedRefreshTokenException;
 import org.etjen.eAPITemplate.exception.auth.jwt.InvalidRefreshTokenException;
 import org.etjen.eAPITemplate.exception.auth.jwt.RefreshTokenNotFoundException;
 import org.etjen.eAPITemplate.repository.EmailVerificationTokenRepository;
@@ -18,6 +19,7 @@ import org.etjen.eAPITemplate.repository.RefreshTokenRepository;
 import org.etjen.eAPITemplate.repository.UserRepository;
 import org.etjen.eAPITemplate.security.auth.RoleCache;
 import org.etjen.eAPITemplate.security.jwt.JwtService;
+import org.etjen.eAPITemplate.security.user.UserPrincipal;
 import org.etjen.eAPITemplate.service.EmailService;
 import org.etjen.eAPITemplate.service.custom.UserServiceImpl;
 import org.etjen.eAPITemplate.web.payload.auth.RegistrationRequest;
@@ -30,10 +32,11 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -455,14 +458,240 @@ public class UserServiceTests {
     @Test
     void givenValidLoginRequest_whenLogin_thenGenerateSaveAndReturnTokens() {
         // given
+        User user = User.builder()
+                .id(42L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(HASHED_DEFAULT_PASSWORD)
+                .failedLoginAttempts(10)            // will be reset to 0
+                .accountNonLocked(false)           // will be unlocked
+                .lockedUntil(Instant.now().plus(Duration.ofMinutes(15)))
+                .status(AccountStatus.ACTIVE)
+                .roles(Set.of(roleUser))
+                .build();
+        var principal = new UserPrincipal(user);
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                principal, "ignored", principal.getAuthorities());
+        BDDMockito.given(authenticationManager.authenticate(any(Authentication.class)))
+                .willReturn(auth);
+        BDDMockito.given(userRepository.findByUsername(user.getUsername())).willReturn(Optional.of(user));
+        BDDMockito.given(refreshTokenRepository.countByUserIdAndRevokedFalseAndExpiresAtAfter(eq(user.getId()), any(Instant.class))).willReturn(0L);
+        BDDMockito.given(accountProperties.concurrentSessionsLimit()).willReturn(20);
+        BDDMockito.given(jwtService.generateAccessToken(any(String.class), anyList(), any(String.class))).willReturn(DEFAULT_ACCESS_TOKEN);
+        BDDMockito.given(jwtService.generateRefreshToken(any(String.class), any(String.class))).willReturn(DEFAULT_REFRESH_TOKEN);
+        BDDMockito.given(jwtService.extractExpiration(any(String.class))).willReturn(Date.from(Instant.now().plus(Duration.ofDays(60))));
 
+        // when
+        TokenPair tokenPair = userServiceImpl.login(DEFAULT_USERNAME, DEFAULT_PASSWORD, false);
+
+        // then
+        assertNotNull(tokenPair);
+        verify(authenticationManager).authenticate(any(Authentication.class));
+        verify(userRepository).findByUsername(DEFAULT_USERNAME);
+        verify(refreshTokenRepository).countByUserIdAndRevokedFalseAndExpiresAtAfter(eq(user.getId()), any(Instant.class));
+        verify(accountProperties).concurrentSessionsLimit();
+        verify(jwtService).extractExpiration(DEFAULT_REFRESH_TOKEN);
+
+        var savedUserCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(savedUserCaptor.capture());
+        var savedUser = savedUserCaptor.getValue();
+        assertEquals(0, savedUser.getFailedLoginAttempts());
+        assertTrue(savedUser.isAccountNonLocked());
+        assertNull(savedUser.getLockedUntil());
+
+        ArgumentCaptor<String> jtiAccessCaptor  = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> jtiRefreshCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jwtService, times(1)).generateAccessToken(eq(user.getUsername()), anyList(), jtiAccessCaptor.capture());
+        verify(jwtService, times(1)).generateRefreshToken(eq(user.getUsername()), jtiRefreshCaptor.capture());
+
+        verify(refreshTokenRepository, times(1)).save(refreshTokenCaptor.capture());
+        var savedToken = refreshTokenCaptor.getValue();
+        assertEquals(savedToken.getTokenId(), jtiAccessCaptor.getValue());
+        assertEquals(savedToken.getTokenId(), jtiRefreshCaptor.getValue());
+    }
+
+    @Test
+    void givenValidLoginRequestCappedSessionsAndRevoke_whenLogin_thenRevokeSessionsGenerateSaveAndReturnTokens() {
+        // given
+        User user = User.builder()
+                .id(42L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(HASHED_DEFAULT_PASSWORD)
+                .status(AccountStatus.ACTIVE)
+                .roles(Set.of(roleUser))
+                .build();
+        var principal = new UserPrincipal(user);
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                principal, "ignored", principal.getAuthorities());
+        BDDMockito.given(authenticationManager.authenticate(any(Authentication.class)))
+                .willReturn(auth);
+        BDDMockito.given(userRepository.findByUsername(user.getUsername())).willReturn(Optional.of(user));
+        BDDMockito.given(refreshTokenRepository.countByUserIdAndRevokedFalseAndExpiresAtAfter(eq(user.getId()), any(Instant.class))).willReturn(25L);
+        BDDMockito.given(accountProperties.concurrentSessionsLimit()).willReturn(20);
+        RefreshToken foundRefreshToken = RefreshToken.builder()
+                .id(1L)
+                .tokenId(DEFAULT_RT_JTI)
+                .expiresAt(Instant.now().plus(Duration.ofDays(5)))
+                .revoked(false)
+                .issuedAt(Instant.now().minus(Duration.ofDays(55)))
+                .ipAddress("0:0:0:0:0:0:0:1")
+                .userAgent("PostmanRuntime/7.44.1")
+                .user(user)
+                .build();
+        BDDMockito.given(refreshTokenRepository.findFirstByUserIdAndRevokedFalseOrderByIssuedAtAsc(eq(user.getId()))).willReturn(Optional.of(foundRefreshToken));
+        BDDMockito.given(jwtService.generateAccessToken(any(String.class), anyList(), any(String.class))).willReturn(DEFAULT_ACCESS_TOKEN);
+        BDDMockito.given(jwtService.generateRefreshToken(any(String.class), any(String.class))).willReturn(DEFAULT_REFRESH_TOKEN);
+        BDDMockito.given(jwtService.extractExpiration(any(String.class))).willReturn(Date.from(Instant.now().plus(Duration.ofDays(60))));
+
+        // when
+        TokenPair tokenPair = userServiceImpl.login(DEFAULT_USERNAME, DEFAULT_PASSWORD, true);
+
+        // then
+        assertNotNull(tokenPair);
+        assertTrue(foundRefreshToken.isRevoked());
+        verify(authenticationManager).authenticate(any(Authentication.class));
+        verify(userRepository).findByUsername(DEFAULT_USERNAME);
+        verify(refreshTokenRepository).countByUserIdAndRevokedFalseAndExpiresAtAfter(eq(user.getId()), any(Instant.class));
+        verify(accountProperties).concurrentSessionsLimit();
+        verify(refreshTokenRepository).findFirstByUserIdAndRevokedFalseOrderByIssuedAtAsc(eq(user.getId()));
+        verify(jwtService).extractExpiration(DEFAULT_REFRESH_TOKEN);
+
+        var savedUserCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(savedUserCaptor.capture());
+        var savedUser = savedUserCaptor.getValue();
+        assertEquals(0, savedUser.getFailedLoginAttempts());
+        assertTrue(savedUser.isAccountNonLocked());
+        assertNull(savedUser.getLockedUntil());
+
+        ArgumentCaptor<String> jtiAccessCaptor  = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> jtiRefreshCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jwtService, times(1)).generateAccessToken(eq(user.getUsername()), anyList(), jtiAccessCaptor.capture());
+        verify(jwtService, times(1)).generateRefreshToken(eq(user.getUsername()), jtiRefreshCaptor.capture());
+
+        verify(refreshTokenRepository, times(2)).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void givenNonExistingUsername_whenLogin_thenAuthenticationManagerThrowCustomUnauthorizedException() {
+        // given
+        BDDMockito.given(authenticationManager.authenticate(any(Authentication.class)))
+                .willThrow(CustomUnauthorizedException.class);
 
         // when
 
+        // then
+        assertThrowsExactly(CustomUnauthorizedException.class, () -> userServiceImpl.login(DEFAULT_USERNAME, DEFAULT_PASSWORD, false));
+    }
+
+    @Test
+    void givenExistingUsernameWrongPassword_whenLogin_thenAuthenticationManagerThrowCustomUnauthorizedExceptionAndLock() {
+        // given
+        User user = User.builder()
+                .id(42L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(HASHED_DEFAULT_PASSWORD)
+                .failedLoginAttempts(10)
+                .status(AccountStatus.ACTIVE)
+                .roles(Set.of(roleUser))
+                .build();
+        BDDMockito.given(authenticationManager.authenticate(any(Authentication.class)))
+                .willThrow(CustomUnauthorizedException.class);
+        BDDMockito.given(userRepository.findByUsername(user.getUsername()))
+                .willReturn(Optional.of(user));
+        BDDMockito.given(accountProperties.maxFailedAttempts()).willReturn(5);
+        BDDMockito.given(accountProperties.lockDuration()).willReturn(Duration.ofMinutes(15));
+
+        // when
 
         // then
-
+        assertThrowsExactly(CustomUnauthorizedException.class, () -> userServiceImpl.login(DEFAULT_USERNAME, DEFAULT_PASSWORD, false));
+        verify(userRepository).findByUsername(anyString());
+        verify(userRepository).save(any(User.class));
+        assertFalse(user.isAccountNonLocked());
+        assertNotNull(user.getLockedUntil());
     }
+
+    @Test
+    void givenNonExistingUsername_whenLogin_thenUserRepositoryThrowCustomUnauthorizedException() {
+        // ? this should never happen because it invalid username is given CustomUnauthorizedException will be thrown by authenticationManager
+
+        // given
+        User user = User.builder()
+                .id(42L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(HASHED_DEFAULT_PASSWORD)
+                .status(AccountStatus.ACTIVE)
+                .roles(Set.of(roleUser))
+                .build();
+        var principal = new UserPrincipal(user);
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                principal, "ignored", principal.getAuthorities());
+        BDDMockito.given(authenticationManager.authenticate(any(Authentication.class)))
+                .willReturn(auth);
+        BDDMockito.given(userRepository.findByUsername(anyString()))
+                .willThrow(CustomUnauthorizedException.class);
+
+        // when
+
+        // then
+        assertThrowsExactly(CustomUnauthorizedException.class, () -> userServiceImpl.login(DEFAULT_USERNAME, DEFAULT_PASSWORD, false));
+        verify(authenticationManager).authenticate(any(Authentication.class));
+    }
+
+    @Test
+    void givenValidLoginRequestCappedSessionsAndNoRevoke_whenLogin_thenThrowConcurrentSessionLimitException() {
+        // given
+        User user = User.builder()
+                .id(42L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(HASHED_DEFAULT_PASSWORD)
+                .status(AccountStatus.ACTIVE)
+                .roles(Set.of(roleUser))
+                .build();
+        var principal = new UserPrincipal(user);
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                principal, "ignored", principal.getAuthorities());
+        BDDMockito.given(authenticationManager.authenticate(any(Authentication.class)))
+                .willReturn(auth);
+        BDDMockito.given(userRepository.findByUsername(user.getUsername())).willReturn(Optional.of(user));
+        BDDMockito.given(refreshTokenRepository.countByUserIdAndRevokedFalseAndExpiresAtAfter(eq(user.getId()), any(Instant.class))).willReturn(25L);
+        BDDMockito.given(accountProperties.concurrentSessionsLimit()).willReturn(20);
+
+        // when
+
+        // then
+        assertThrowsExactly(ConcurrentSessionLimitException.class, () -> userServiceImpl.login(DEFAULT_USERNAME, DEFAULT_PASSWORD, false));
+        verify(authenticationManager).authenticate(any(Authentication.class));
+        verify(userRepository).findByUsername(DEFAULT_USERNAME);
+        verify(userRepository).save(any(User.class));
+        verify(refreshTokenRepository).countByUserIdAndRevokedFalseAndExpiresAtAfter(eq(user.getId()), any(Instant.class));
+        verify(accountProperties, times(2)).concurrentSessionsLimit();
+        verifyNoMoreInteractions(refreshTokenRepository);
+    }
+
+    // RefreshTokenNotFoundException in revokeOldestByUserId() will not be covered
+
+    @Test
+    void givenLockedAccountUser_whenLogin_thenAuthenticationManagerThrowAccountLockedException() {
+        // given
+        BDDMockito.given(authenticationManager.authenticate(any(Authentication.class)))
+                .willThrow(AccountLockedException.class);
+
+        // when
+
+        // then
+        assertThrowsExactly(AccountLockedException.class, () -> userServiceImpl.login(DEFAULT_USERNAME, DEFAULT_PASSWORD, false));
+        verifyNoInteractions(userRepository);
+        verifyNoInteractions(refreshTokenRepository);
+        verifyNoInteractions(accountProperties);
+        verifyNoInteractions(jwtService);
+    }
+
+    // JwtGenerationException will not be covered
 
     // ! refresh
 
@@ -507,15 +736,123 @@ public class UserServiceTests {
         assertEquals(DEFAULT_ACCESS_TOKEN, pair.accessToken());
         assertEquals(newRefreshToken, pair.refreshToken());
 
-        ArgumentCaptor<String> jtiAccessCap  = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> jtiRefreshCap = ArgumentCaptor.forClass(String.class);
-        verify(jwtService, times(1)).generateAccessToken(anyString(), anyList(), jtiAccessCap.capture());
-        verify(jwtService, times(1)).generateRefreshToken(eq(user.getUsername()), jtiRefreshCap.capture());
+        ArgumentCaptor<String> jtiAccessCaptor  = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> jtiRefreshCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jwtService, times(1)).generateAccessToken(anyString(), anyList(), jtiAccessCaptor.capture());
+        verify(jwtService, times(1)).generateRefreshToken(eq(user.getUsername()), jtiRefreshCaptor.capture());
 
-        verify(refreshTokenRepository, atMostOnce()).save(refreshTokenCaptor.capture());
+        verify(refreshTokenRepository, times(1)).save(refreshTokenCaptor.capture());
         var savedToken = refreshTokenCaptor.getValue();
         assertNotEquals(foundRefreshToken.getTokenId(), savedToken.getTokenId());
-        assertEquals(savedToken.getTokenId(), jtiAccessCap.getValue());
-        assertEquals(savedToken.getTokenId(), jtiRefreshCap.getValue());
+        assertEquals(savedToken.getTokenId(), jtiAccessCaptor.getValue());
+        assertEquals(savedToken.getTokenId(), jtiRefreshCaptor.getValue());
+    }
+
+    @Test
+    void givenInvalidRefreshToken_whenRefresh_thenThrowInvalidRefreshTokenException() {
+        // given
+        BDDMockito.given(jwtService.extractAllClaims(anyString())).willThrow(new RuntimeException("bad jwt"));
+
+        // when
+
+        // then
+        assertThrowsExactly(InvalidRefreshTokenException.class, () -> userServiceImpl.refresh("invalid token"));
+        verifyNoInteractions(refreshTokenRepository);
+        verify(jwtService, never()).generateAccessToken(anyString(), anyList(), anyString());
+        verify(jwtService, never()).generateRefreshToken(anyString(), anyString());
+        verify(jwtService, never()).extractExpiration(anyString());
+    }
+
+    @Test
+    void givenNonExistingTokenId_whenRefresh_thenThrowInvalidRefreshTokenException() {
+        // given
+        var claims = new DefaultClaims(Map.of("jti","abc", "sub","user"));
+        BDDMockito.given(jwtService.extractAllClaims(anyString())).willReturn(claims);
+        BDDMockito.given(refreshTokenRepository.findAndLockByTokenId(anyString())).willReturn(Optional.empty());
+
+        // when
+
+        // then
+        assertThrowsExactly(InvalidRefreshTokenException.class, () -> userServiceImpl.refresh(DEFAULT_REFRESH_TOKEN));
+        verify(jwtService, never()).generateAccessToken(anyString(), anyList(), anyString());
+        verify(jwtService, never()).generateRefreshToken(anyString(), anyString());
+        verify(jwtService, never()).extractExpiration(anyString());
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void givenRevokedToken_whenRefresh_thenThrowExpiredOrRevokedRefreshTokenException() {
+        // given
+        HashMap<String, String> claimsMap = new HashMap<>();
+        claimsMap.put("jti", DEFAULT_RT_JTI);
+        User user = User.builder()
+                .id(1L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD)
+                .status(AccountStatus.PENDING_VERIFICATION)
+                .roles(Set.of(roleUser))
+                .build();
+        claimsMap.put("sub", user.getUsername());
+        DefaultClaims defaultClaims = new DefaultClaims(claimsMap);
+        BDDMockito.given(jwtService.extractAllClaims(any(String.class))).willReturn(defaultClaims);
+        RefreshToken foundRefreshToken = RefreshToken.builder()
+                .id(1L)
+                .tokenId(DEFAULT_RT_JTI)
+                .expiresAt(Instant.now().plus(Duration.ofDays(59)))
+                .revoked(true)
+                .issuedAt(Instant.now().minus(Duration.ofDays(1)))
+                .ipAddress("0:0:0:0:0:0:0:1")
+                .userAgent("PostmanRuntime/7.44.1")
+                .user(user)
+                .build();
+        BDDMockito.given(refreshTokenRepository.findAndLockByTokenId(DEFAULT_RT_JTI)).willReturn(Optional.of(foundRefreshToken));
+
+        // when
+
+        // then
+        assertThrowsExactly(ExpiredOrRevokedRefreshTokenException.class, () -> userServiceImpl.refresh(DEFAULT_REFRESH_TOKEN));
+        verify(jwtService, never()).generateAccessToken(anyString(), anyList(), anyString());
+        verify(jwtService, never()).generateRefreshToken(anyString(), anyString());
+        verify(jwtService, never()).extractExpiration(anyString());
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void givenExpiredToken_whenRefresh_thenThrowExpiredOrRevokedRefreshTokenException() {
+        // given
+        HashMap<String, String> claimsMap = new HashMap<>();
+        claimsMap.put("jti", DEFAULT_RT_JTI);
+        User user = User.builder()
+                .id(1L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD)
+                .status(AccountStatus.PENDING_VERIFICATION)
+                .roles(Set.of(roleUser))
+                .build();
+        claimsMap.put("sub", user.getUsername());
+        DefaultClaims defaultClaims = new DefaultClaims(claimsMap);
+        BDDMockito.given(jwtService.extractAllClaims(any(String.class))).willReturn(defaultClaims);
+        RefreshToken foundRefreshToken = RefreshToken.builder()
+                .id(1L)
+                .tokenId(DEFAULT_RT_JTI)
+                .expiresAt(Instant.now().minus(Duration.ofDays(1)))
+                .revoked(false)
+                .issuedAt(Instant.now().minus(Duration.ofDays(61)))
+                .ipAddress("0:0:0:0:0:0:0:1")
+                .userAgent("PostmanRuntime/7.44.1")
+                .user(user)
+                .build();
+        BDDMockito.given(refreshTokenRepository.findAndLockByTokenId(DEFAULT_RT_JTI)).willReturn(Optional.of(foundRefreshToken));
+
+        // when
+
+        // then
+        assertThrowsExactly(ExpiredOrRevokedRefreshTokenException.class, () -> userServiceImpl.refresh(DEFAULT_REFRESH_TOKEN));
+        verify(jwtService, never()).generateAccessToken(anyString(), anyList(), anyString());
+        verify(jwtService, never()).generateRefreshToken(anyString(), anyString());
+        verify(jwtService, never()).extractExpiration(anyString());
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
     }
 }

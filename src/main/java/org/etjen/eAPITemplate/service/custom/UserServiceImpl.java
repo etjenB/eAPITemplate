@@ -131,8 +131,8 @@ public class UserServiceImpl implements UserService {
                 }
                 revokeOldestByUserId(user.getId());
             }
-            UserPrincipal p = (UserPrincipal) auth.getPrincipal();
-            List<String> roles = p.getAuthorities().stream()
+            UserPrincipal userPrincipal = (UserPrincipal) auth.getPrincipal();
+            List<String> roles = userPrincipal.getAuthorities().stream()
                     .map(GrantedAuthority::getAuthority)
                     .toList();
             String jti = UUID.randomUUID().toString();
@@ -143,7 +143,7 @@ public class UserServiceImpl implements UserService {
                     .issuedAt(Instant.now())
                     .expiresAt(jwtService.extractExpiration(refreshToken).toInstant())
                     .revoked(false)
-                    .user(userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedException::new))
+                    .user(user)
                     .ipAddress(RequestContextHolder.currentRequestAttributes() instanceof ServletRequestAttributes sra
                             ? sra.getRequest().getRemoteAddr()
                             : null)
@@ -172,7 +172,6 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    @Override
     public void onLoginFailure(String username) {
         User user = userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedException::new);
         int attempts = user.getFailedLoginAttempts() + 1;
@@ -184,7 +183,6 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
     }
 
-    @Override
     public void onLoginSuccess(User user) {
         user.setFailedLoginAttempts(0);
         // unlock if needed
@@ -204,6 +202,7 @@ public class UserServiceImpl implements UserService {
         refreshTokenRepository.save(oldest);
     }
 
+    @Override
     @Transactional
     public TokenPair refresh(String refreshJwt) throws InvalidRefreshTokenException, ExpiredOrRevokedRefreshTokenException {
         Claims claims;
