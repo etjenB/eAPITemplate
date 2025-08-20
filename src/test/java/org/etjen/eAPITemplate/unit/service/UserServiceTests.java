@@ -363,6 +363,45 @@ public class UserServiceTests {
     }
 
     @Test
+    void givenTokenForDeletedUser_whenVerify_thenThrowAccountDeletedException() {
+        // given
+        User user = User.builder()
+                .id(1L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD)
+                .status(AccountStatus.DELETED)
+                .roles(Set.of(roleUser))
+                .build();
+        EmailVerificationToken emailVerificationToken = EmailVerificationToken.builder()
+                .id(1L)
+                .token(DEFAULT_EMAIL_TOKEN)
+                .expiresAt(Instant.now().plus(Duration.ofHours(20)))
+                .used(false)
+                .issuedAt(Instant.now().minus(Duration.ofHours(4)))
+                .user(user)
+                .build();
+        BDDMockito.given(emailVerificationTokenRepository.findByToken(any(String.class))).willReturn(Optional.of(emailVerificationToken));
+
+        AccountStatus statusBefore = user.getStatus();
+        boolean verifiedBefore = user.isEmailVerified();
+        boolean usedBefore = emailVerificationToken.isUsed();
+
+        // when
+
+        // then
+        assertThrowsExactly(AccountDeletedException.class, () -> userServiceImpl.verify(emailVerificationToken.getToken()));
+
+        verify(emailVerificationTokenRepository, times(1)).findByToken(emailVerificationToken.getToken());
+        verifyNoMoreInteractions(emailVerificationTokenRepository);
+        verifyNoInteractions(userRepository);
+
+        assertEquals(statusBefore, user.getStatus());
+        assertEquals(verifiedBefore, user.isEmailVerified());
+        assertEquals(usedBefore, emailVerificationToken.isUsed());
+    }
+
+    @Test
     void givenExistingUsedToken_whenVerify_thenNoActivation() {
         // given
         User user = User.builder()
@@ -642,6 +681,90 @@ public class UserServiceTests {
     }
 
     @Test
+    void givenValidLoginRequestForUserPendingVerification_whenLogin_thenThrowEmailNotVerifiedException() {
+        // given
+        User user = User.builder()
+                .id(42L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(HASHED_DEFAULT_PASSWORD)
+                .status(AccountStatus.PENDING_VERIFICATION)
+                .roles(Set.of(roleUser))
+                .build();
+        var principal = new UserPrincipal(user);
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                principal, "ignored", principal.getAuthorities());
+        BDDMockito.given(authenticationManager.authenticate(any(Authentication.class)))
+                .willReturn(auth);
+        BDDMockito.given(userRepository.findByUsername(user.getUsername())).willReturn(Optional.of(user));
+
+        // when
+
+        // then
+        assertThrowsExactly(EmailNotVerifiedException.class, () -> userServiceImpl.login(DEFAULT_USERNAME, DEFAULT_PASSWORD, false));
+        verify(authenticationManager).authenticate(any(Authentication.class));
+        verify(userRepository).findByUsername(anyString());
+        verifyNoMoreInteractions(userRepository);
+        verifyNoInteractions(refreshTokenRepository);
+    }
+
+    @Test
+    void givenValidLoginRequestForUserSuspended_whenLogin_thenThrowAccountSuspendedException() {
+        // given
+        User user = User.builder()
+                .id(42L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(HASHED_DEFAULT_PASSWORD)
+                .status(AccountStatus.SUSPENDED)
+                .roles(Set.of(roleUser))
+                .build();
+        var principal = new UserPrincipal(user);
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                principal, "ignored", principal.getAuthorities());
+        BDDMockito.given(authenticationManager.authenticate(any(Authentication.class)))
+                .willReturn(auth);
+        BDDMockito.given(userRepository.findByUsername(user.getUsername())).willReturn(Optional.of(user));
+
+        // when
+
+        // then
+        assertThrowsExactly(AccountSuspendedException.class, () -> userServiceImpl.login(DEFAULT_USERNAME, DEFAULT_PASSWORD, false));
+        verify(authenticationManager).authenticate(any(Authentication.class));
+        verify(userRepository).findByUsername(anyString());
+        verifyNoMoreInteractions(userRepository);
+        verifyNoInteractions(refreshTokenRepository);
+    }
+
+    @Test
+    void givenValidLoginRequestForUserDeleted_whenLogin_thenThrowAccountDeletedException() {
+        // given
+        User user = User.builder()
+                .id(42L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(HASHED_DEFAULT_PASSWORD)
+                .status(AccountStatus.DELETED)
+                .roles(Set.of(roleUser))
+                .build();
+        var principal = new UserPrincipal(user);
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                principal, "ignored", principal.getAuthorities());
+        BDDMockito.given(authenticationManager.authenticate(any(Authentication.class)))
+                .willReturn(auth);
+        BDDMockito.given(userRepository.findByUsername(user.getUsername())).willReturn(Optional.of(user));
+
+        // when
+
+        // then
+        assertThrowsExactly(AccountDeletedException.class, () -> userServiceImpl.login(DEFAULT_USERNAME, DEFAULT_PASSWORD, false));
+        verify(authenticationManager).authenticate(any(Authentication.class));
+        verify(userRepository).findByUsername(anyString());
+        verifyNoMoreInteractions(userRepository);
+        verifyNoInteractions(refreshTokenRepository);
+    }
+
+    @Test
     void givenValidLoginRequestCappedSessionsAndNoRevoke_whenLogin_thenThrowConcurrentSessionLimitException() {
         // given
         User user = User.builder()
@@ -705,7 +828,7 @@ public class UserServiceTests {
                 .username(DEFAULT_USERNAME)
                 .email(DEFAULT_EMAIL)
                 .password(DEFAULT_PASSWORD)
-                .status(AccountStatus.PENDING_VERIFICATION)
+                .status(AccountStatus.ACTIVE)
                 .roles(Set.of(roleUser))
                 .build();
         claimsMap.put("sub", user.getUsername());
@@ -781,7 +904,7 @@ public class UserServiceTests {
     }
 
     @Test
-    void givenRevokedToken_whenRefresh_thenThrowExpiredOrRevokedRefreshTokenException() {
+    void givenTokenUserPendingVerification_whenRefresh_thenThrowEmailNotVerifiedException() {
         // given
         HashMap<String, String> claimsMap = new HashMap<>();
         claimsMap.put("jti", DEFAULT_RT_JTI);
@@ -791,6 +914,120 @@ public class UserServiceTests {
                 .email(DEFAULT_EMAIL)
                 .password(DEFAULT_PASSWORD)
                 .status(AccountStatus.PENDING_VERIFICATION)
+                .roles(Set.of(roleUser))
+                .build();
+        claimsMap.put("sub", user.getUsername());
+        DefaultClaims defaultClaims = new DefaultClaims(claimsMap);
+        BDDMockito.given(jwtService.extractAllClaims(any(String.class))).willReturn(defaultClaims);
+        RefreshToken foundRefreshToken = RefreshToken.builder()
+                .id(1L)
+                .tokenId(DEFAULT_RT_JTI)
+                .expiresAt(Instant.now().minus(Duration.ofDays(1)))
+                .revoked(true)
+                .issuedAt(Instant.now().minus(Duration.ofDays(61)))
+                .ipAddress("0:0:0:0:0:0:0:1")
+                .userAgent("PostmanRuntime/7.44.1")
+                .user(user)
+                .build();
+        BDDMockito.given(refreshTokenRepository.findAndLockByTokenId(DEFAULT_RT_JTI)).willReturn(Optional.of(foundRefreshToken));
+
+        // when
+
+        // then
+        assertThrowsExactly(EmailNotVerifiedException.class, () -> userServiceImpl.refresh(DEFAULT_REFRESH_TOKEN));
+        verify(jwtService, never()).generateAccessToken(anyString(), anyList(), anyString());
+        verify(jwtService, never()).generateRefreshToken(anyString(), anyString());
+        verify(jwtService, never()).extractExpiration(anyString());
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void givenTokenUserSuspended_whenRefresh_thenThrowAccountSuspendedException() {
+        // given
+        HashMap<String, String> claimsMap = new HashMap<>();
+        claimsMap.put("jti", DEFAULT_RT_JTI);
+        User user = User.builder()
+                .id(1L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD)
+                .status(AccountStatus.SUSPENDED)
+                .roles(Set.of(roleUser))
+                .build();
+        claimsMap.put("sub", user.getUsername());
+        DefaultClaims defaultClaims = new DefaultClaims(claimsMap);
+        BDDMockito.given(jwtService.extractAllClaims(any(String.class))).willReturn(defaultClaims);
+        RefreshToken foundRefreshToken = RefreshToken.builder()
+                .id(1L)
+                .tokenId(DEFAULT_RT_JTI)
+                .expiresAt(Instant.now().minus(Duration.ofDays(1)))
+                .revoked(true)
+                .issuedAt(Instant.now().minus(Duration.ofDays(61)))
+                .ipAddress("0:0:0:0:0:0:0:1")
+                .userAgent("PostmanRuntime/7.44.1")
+                .user(user)
+                .build();
+        BDDMockito.given(refreshTokenRepository.findAndLockByTokenId(DEFAULT_RT_JTI)).willReturn(Optional.of(foundRefreshToken));
+
+        // when
+
+        // then
+        assertThrowsExactly(AccountSuspendedException.class, () -> userServiceImpl.refresh(DEFAULT_REFRESH_TOKEN));
+        verify(jwtService, never()).generateAccessToken(anyString(), anyList(), anyString());
+        verify(jwtService, never()).generateRefreshToken(anyString(), anyString());
+        verify(jwtService, never()).extractExpiration(anyString());
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void givenTokenUserDeleted_whenRefresh_thenThrowAccountDeletedException() {
+        // given
+        HashMap<String, String> claimsMap = new HashMap<>();
+        claimsMap.put("jti", DEFAULT_RT_JTI);
+        User user = User.builder()
+                .id(1L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD)
+                .status(AccountStatus.DELETED)
+                .roles(Set.of(roleUser))
+                .build();
+        claimsMap.put("sub", user.getUsername());
+        DefaultClaims defaultClaims = new DefaultClaims(claimsMap);
+        BDDMockito.given(jwtService.extractAllClaims(any(String.class))).willReturn(defaultClaims);
+        RefreshToken foundRefreshToken = RefreshToken.builder()
+                .id(1L)
+                .tokenId(DEFAULT_RT_JTI)
+                .expiresAt(Instant.now().minus(Duration.ofDays(1)))
+                .revoked(true)
+                .issuedAt(Instant.now().minus(Duration.ofDays(61)))
+                .ipAddress("0:0:0:0:0:0:0:1")
+                .userAgent("PostmanRuntime/7.44.1")
+                .user(user)
+                .build();
+        BDDMockito.given(refreshTokenRepository.findAndLockByTokenId(DEFAULT_RT_JTI)).willReturn(Optional.of(foundRefreshToken));
+
+        // when
+
+        // then
+        assertThrowsExactly(AccountDeletedException.class, () -> userServiceImpl.refresh(DEFAULT_REFRESH_TOKEN));
+        verify(jwtService, never()).generateAccessToken(anyString(), anyList(), anyString());
+        verify(jwtService, never()).generateRefreshToken(anyString(), anyString());
+        verify(jwtService, never()).extractExpiration(anyString());
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void givenRevokedToken_whenRefresh_thenThrowExpiredOrRevokedRefreshTokenException() {
+        // given
+        HashMap<String, String> claimsMap = new HashMap<>();
+        claimsMap.put("jti", DEFAULT_RT_JTI);
+        User user = User.builder()
+                .id(1L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD)
+                .status(AccountStatus.ACTIVE)
                 .roles(Set.of(roleUser))
                 .build();
         claimsMap.put("sub", user.getUsername());
@@ -828,7 +1065,7 @@ public class UserServiceTests {
                 .username(DEFAULT_USERNAME)
                 .email(DEFAULT_EMAIL)
                 .password(DEFAULT_PASSWORD)
-                .status(AccountStatus.PENDING_VERIFICATION)
+                .status(AccountStatus.ACTIVE)
                 .roles(Set.of(roleUser))
                 .build();
         claimsMap.put("sub", user.getUsername());

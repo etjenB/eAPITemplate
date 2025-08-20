@@ -94,6 +94,9 @@ public class UserServiceImpl implements UserService {
         }
 
         User user = existingToken.getUser();
+        if (user.getStatus() == AccountStatus.DELETED) {
+            throw new AccountDeletedException();
+        }
         user.setStatus(AccountStatus.ACTIVE);
         user.setEmailVerified(true);
         existingToken.setUsed(true);
@@ -122,6 +125,11 @@ public class UserServiceImpl implements UserService {
                     new UsernamePasswordAuthenticationToken(username, password)
             );
             User user = userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedException::new);
+            switch (user.getStatus()) {
+                case PENDING_VERIFICATION -> throw new EmailNotVerifiedException();
+                case SUSPENDED -> throw new AccountSuspendedException();
+                case DELETED -> throw new AccountDeletedException();
+            }
             this.onLoginSuccess(user);
             long active = refreshTokenRepository.countByUserIdAndRevokedFalseAndExpiresAtAfter(
                     user.getId(), Instant.now());
@@ -157,6 +165,15 @@ public class UserServiceImpl implements UserService {
         catch (CustomUnauthorizedException ex) {
             this.onLoginFailure(username);
             throw new CustomUnauthorizedException(ex.getMessage());
+        }
+        catch (EmailNotVerifiedException ex) {
+            throw new EmailNotVerifiedException(ex.getMessage());
+        }
+        catch (AccountSuspendedException ex) {
+            throw new AccountSuspendedException(ex.getMessage());
+        }
+        catch (AccountDeletedException ex) {
+            throw new AccountDeletedException(ex.getMessage());
         }
         catch (ConcurrentSessionLimitException ex) {
             throw new ConcurrentSessionLimitException(ex.getMessage());
@@ -214,6 +231,12 @@ public class UserServiceImpl implements UserService {
         String jti = claims.getId();
         RefreshToken oldRefreshToken = refreshTokenRepository.findAndLockByTokenId(jti)
                 .orElseThrow(() -> new InvalidRefreshTokenException("Invalid refresh token"));
+        User user = oldRefreshToken.getUser();
+        switch (user.getStatus()) {
+            case PENDING_VERIFICATION -> throw new EmailNotVerifiedException();
+            case SUSPENDED -> throw new AccountSuspendedException();
+            case DELETED -> throw new AccountDeletedException();
+        }
         if (oldRefreshToken.isRevoked() || oldRefreshToken.getExpiresAt().isBefore(Instant.now())) {
             throw new ExpiredOrRevokedRefreshTokenException("Expired or revoked refresh token");
         }
@@ -221,7 +244,7 @@ public class UserServiceImpl implements UserService {
         oldRefreshToken.setRevoked(true);
         // ? refreshTokenRepository.save(oldRefreshToken); - not needed because JPA flushes on commit
 
-        List<String> roles = oldRefreshToken.getUser().getRoles()
+        List<String> roles = user.getRoles()
                 .stream().map(Role::getName).toList();
 
         String newJti = UUID.randomUUID().toString();
@@ -233,7 +256,7 @@ public class UserServiceImpl implements UserService {
                 .issuedAt(Instant.now())
                 .expiresAt(jwtService.extractExpiration(newRefreshToken).toInstant())
                 .revoked(false)
-                .user(oldRefreshToken.getUser())
+                .user(user)
                 .ipAddress(RequestContextHolder.currentRequestAttributes() instanceof ServletRequestAttributes sra
                         ? sra.getRequest().getRemoteAddr()
                         : null)

@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.etjen.eAPITemplate.config.properties.security.JwtProperties;
 import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedException;
+import org.etjen.eAPITemplate.security.jwt.JwtService;
 import org.etjen.eAPITemplate.service.UserService;
 import org.etjen.eAPITemplate.web.payload.auth.LoginRequest;
 import org.etjen.eAPITemplate.web.payload.auth.LoginResponse;
@@ -14,12 +15,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.time.Duration;
+import java.time.Instant;
 
 @RestController
 @RequestMapping(value = "/auth", produces = "application/json")
 @RequiredArgsConstructor
 public class AuthController {
     private final UserService userService;
+    private final JwtService jwtService;
     private final JwtProperties jwtProperties;
 
     // ? don't need this because lombok @RequiredArgsConstructor annotation
@@ -67,23 +71,10 @@ public class AuthController {
     public ResponseEntity<LoginResponse> login(@RequestParam(name = "revokeOldest", defaultValue = "false", required = false) boolean revokeOldest,
                                                 @Valid @RequestBody LoginRequest loginRequest) throws CustomUnauthorizedException {
         TokenPair pair = userService.login(loginRequest.username(), loginRequest.password(), revokeOldest);
-        // put refresh token into an HttpOnly, Secure cookie
-        ResponseCookie cookie = ResponseCookie.from("refresh_token", pair.refreshToken())
-                .httpOnly(true)
-                .secure(true)
-                .sameSite("Strict")
-                .path("/auth")
-                .maxAge(jwtProperties.refreshExpiration())
-                .build();
-        LoginResponse body = new LoginResponse(
-                pair.accessToken(),
-                jwtProperties.expiration().toMillis(),
-                "Bearer"
-                // ? pair.refreshToken() - this would be done for mobile app clients
-        );
+        ResponseCookie cookie = buildRefreshCookie(pair.refreshToken());
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .body(body);
+                .body(new LoginResponse(pair.accessToken(), jwtProperties.expiration().toMillis(), "Bearer")); // ? pair.refreshToken() - this would be done for mobile app clients
     }
 
     @PostMapping("/refresh")
@@ -91,24 +82,26 @@ public class AuthController {
                                                // ? @RequestBody(required = false) Map<String,String> body - this would be collected from mobile app clients: {"refresh_token": "..."}
     ) {
         TokenPair pair = userService.refresh(refreshJwt);
+        ResponseCookie cookie = buildRefreshCookie(pair.refreshToken());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(new LoginResponse(pair.accessToken(), jwtProperties.expiration().toMillis(), "Bearer"));
+    }
 
-        ResponseCookie cookie = ResponseCookie.from("refresh_token", pair.refreshToken())
+    private ResponseCookie buildRefreshCookie(String refreshToken) {
+        Instant exp = jwtService.extractExpiration(refreshToken).toInstant();
+        long seconds = Duration.between(Instant.now(), exp)
+                .minusSeconds(5) // small skew buffer
+                .toSeconds();
+        if (seconds < 0) seconds = 0;
+
+        // put refresh token into an HttpOnly, Secure cookie
+        return ResponseCookie.from("refresh_token", refreshToken)
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("Strict")
                 .path("/auth")
-                .maxAge(jwtProperties.refreshExpiration())
+                .maxAge(Duration.ofSeconds(seconds))
                 .build();
-
-        LoginResponse body = new LoginResponse(
-                pair.accessToken(),
-                jwtProperties.expiration().toMillis(),
-                "Bearer"
-                // ? pair.refreshToken() - this would be done for mobile app clients
-        );
-
-        return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .body(body);
     }
 }

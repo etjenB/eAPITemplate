@@ -22,7 +22,8 @@ public enum ExceptionEnums {
     EmailVerificationTokenExpiredExceptionCode(115),
     AccountSuspendedExceptionCode(116),
     AccountDeletedExceptionCode(117),
-    DuplicateEmailExceptionCode(118);
+    DuplicateEmailExceptionCode(118),
+    EmailNotVerifiedExceptionCode(119);
 
     private final int code;
 
