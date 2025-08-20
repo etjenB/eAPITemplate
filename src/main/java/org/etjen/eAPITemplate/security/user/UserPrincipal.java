@@ -1,5 +1,6 @@
 package org.etjen.eAPITemplate.security.user;
 
+import org.etjen.eAPITemplate.domain.model.enums.AccountStatus;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -50,4 +51,9 @@ public class UserPrincipal implements UserDetails {
     public boolean isEnabled() {
         return user.isEnabled();
     }
+
+    public boolean isStatusPendingVerification() { return user.getStatus() == AccountStatus.PENDING_VERIFICATION; }
+    public boolean isStatusActive() { return user.getStatus() == AccountStatus.ACTIVE; }
+    public boolean isStatusSuspended() { return user.getStatus() == AccountStatus.SUSPENDED; }
+    public boolean isStatusDeleted() { return user.getStatus() == AccountStatus.DELETED; }
 }

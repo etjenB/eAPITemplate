@@ -5,9 +5,14 @@ import org.etjen.eAPITemplate.config.properties.http.CorsProperties;
 import org.etjen.eAPITemplate.security.jwt.JwtAuthenticationFilter;
 import org.etjen.eAPITemplate.security.jwt.JwtService;
 import org.etjen.eAPITemplate.security.user.UserDetailsServiceImpl;
+import org.etjen.eAPITemplate.security.user.UserPrincipal;
 import org.springframework.context.annotation.*;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.builders.*;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -19,11 +24,11 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.etjen.eAPITemplate.security.provider.CustomAuthenticationProvider;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
 import java.util.List;
 
 @Configuration
@@ -40,7 +45,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return PasswordEncoderFactories.createDelegatingPasswordEncoder(); //Argon2id primary, BCrypt fallback - Spring-Security default as of 6.3 and fares better on GPUs than BCrypt
+        return PasswordEncoderFactories.createDelegatingPasswordEncoder(); // maybe - check latest info to be sure -> Argon2id primary, BCrypt fallback - Spring-Security default as of 6.3 and fares better on GPUs than BCrypt
     }
 
     @Bean
@@ -49,6 +54,17 @@ public class SecurityConfig {
                 .authenticationProvider(customAuthProvider)
                 .getSharedObject(AuthenticationManagerBuilder.class)
                 .build();
+    }
+
+    @Bean
+    AuthorizationManager<RequestAuthorizationContext> accountStatusActive() {
+        return (authentication, ctx) -> {
+            var authOpt = authentication.get();
+            boolean ok = authOpt.isAuthenticated()
+                    && authOpt.getPrincipal() instanceof UserPrincipal userPrincipal
+                    && userPrincipal.isStatusActive();
+            return new AuthorizationDecision(ok);
+        };
     }
 
     @Bean
@@ -65,8 +81,14 @@ public class SecurityConfig {
                 // ! all other paths are only for logged in user
             .authorizeHttpRequests(
                     auth -> auth
-                                                            .requestMatchers("/user/**", "/auth/sessions/**").hasAnyRole("USER","ADMIN")
+                                                            .requestMatchers("/user/**").hasAnyRole("USER","ADMIN")
                                                             .requestMatchers("/admin/**").hasRole("ADMIN")
+                                                            .requestMatchers("/auth/sessions/**").access(
+                                                                    AuthorizationManagers.allOf(
+                                                                            AuthorityAuthorizationManager.hasAnyRole("USER","ADMIN"),
+                                                                            accountStatusActive()
+                                                                    )
+                                                            )
                                                             .requestMatchers("/test/public/**", "/auth/**", "/actuator/**").permitAll()
                                                             .anyRequest().authenticated()
             )

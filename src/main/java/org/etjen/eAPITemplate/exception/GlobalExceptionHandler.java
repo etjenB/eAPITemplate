@@ -63,24 +63,24 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleAccountLockedException(AccountLockedException ex, HttpServletRequest request) {
         logger.warn("Account is locked on [{}]: {}", request.getRequestURI(), ex.getMessage());
         ProblemDetail pd = ProblemDetail
-                .forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+                .forStatusAndDetail(HttpStatus.LOCKED, ex.getMessage());
         pd.setType(URI.create(request.getRequestURI()));
         pd.setTitle("Account is locked");
         pd.setProperty("hostname", request.getHeader("Host"));
         pd.setProperty("code", AccountLockedException.code);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
+        return ResponseEntity.status(HttpStatus.LOCKED).body(pd);
     }
 
     @ExceptionHandler(AccountSuspendedException.class)
     public ResponseEntity<ProblemDetail> handleAccountSuspendedException(AccountSuspendedException ex, HttpServletRequest request) {
         logger.warn("Account is suspended on [{}]: {}", request.getRequestURI(), ex.getMessage());
         ProblemDetail pd = ProblemDetail
-                .forStatusAndDetail(HttpStatus.LOCKED, ex.getMessage());
+                .forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
         pd.setType(URI.create(request.getRequestURI()));
         pd.setTitle("Account is suspended");
         pd.setProperty("hostname", request.getHeader("Host"));
         pd.setProperty("code", AccountSuspendedException.code);
-        return ResponseEntity.status(HttpStatus.LOCKED).body(pd);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(pd);
     }
 
     @ExceptionHandler(AccountDeletedException.class)
@@ -105,6 +105,18 @@ public class GlobalExceptionHandler {
         pd.setProperty("hostname", request.getHeader("Host"));
         pd.setProperty("code", DuplicateEmailException.code);
         return ResponseEntity.status(HttpStatus.CONFLICT).body(pd);
+    }
+
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<ProblemDetail> handleEmailNotVerifiedException(EmailNotVerifiedException ex, HttpServletRequest request) {
+        logger.warn("Email is not yet verified on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Email is not yet verified");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", EmailNotVerifiedException.code);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(pd);
     }
 
     @ExceptionHandler(ConcurrentSessionLimitException.class)
