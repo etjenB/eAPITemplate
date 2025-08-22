@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -70,5 +71,20 @@ public class EmailServiceTests {
         assertEquals("Verify your account", saved.getSubject());
         assertEquals("Click: " + expectedLink, saved.getBody());
         verifyNoMoreInteractions(emailOutboxRepository, appProperties);
+    }
+
+    @Test
+    void givenBaseUrlWithTrailingSlash_whenSendVerificationMail_thenNoDoubleSlash() {
+        // given
+        BDDMockito.given(appProperties.baseUrl()).willReturn("http://localhost/");
+        String token = defaultVerifyToken;
+
+        // when
+        emailServiceImpl.sendVerificationMail(defaultUser, token);
+
+        // then
+        ArgumentCaptor<EmailOutbox> captor = ArgumentCaptor.forClass(EmailOutbox.class);
+        verify(emailOutboxRepository).save(captor.capture());
+        assertTrue(captor.getValue().getBody().contains("http://localhost/auth/verify?token=" + token));
     }
 }
