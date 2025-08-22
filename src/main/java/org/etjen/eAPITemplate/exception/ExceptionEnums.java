@@ -23,7 +23,8 @@ public enum ExceptionEnums {
     AccountSuspendedExceptionCode(116),
     AccountDeletedExceptionCode(117),
     DuplicateEmailExceptionCode(118),
-    EmailNotVerifiedExceptionCode(119);
+    EmailNotVerifiedExceptionCode(119),
+    MissingAuthenticationCredentialsExceptionCode(120);
 
     private final int code;
 

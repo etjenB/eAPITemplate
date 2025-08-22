@@ -46,6 +46,18 @@ public class GlobalExceptionHandler {
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     // ? AUTH ----------------------------------------------------------------------------------------------------------------------------------------------------
+    @ExceptionHandler(MissingAuthenticationCredentialsException.class)
+    public ResponseEntity<ProblemDetail> handleMissingAuthenticationCredentialsException(MissingAuthenticationCredentialsException ex, HttpServletRequest request) {
+        logger.warn("Missing authentication credentials on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail
+                .forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
+        pd.setType(URI.create(request.getRequestURI()));
+        pd.setTitle("Missing authentication credentials");
+        pd.setProperty("hostname", request.getHeader("Host"));
+        pd.setProperty("code", MissingAuthenticationCredentialsException.code);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(pd);
+    }
+
     @ExceptionHandler(CustomUnauthorizedException.class)
     public ResponseEntity<ProblemDetail> handleCustomUnauthorizedExpection(CustomUnauthorizedException ex, HttpServletRequest request) {
         // Log as WARN (since it’s a client‐error/auth failure)

@@ -166,23 +166,9 @@ public class UserServiceImpl implements UserService {
             this.onLoginFailure(username);
             throw new CustomUnauthorizedException(ex.getMessage());
         }
-        catch (EmailNotVerifiedException ex) {
-            throw new EmailNotVerifiedException(ex.getMessage());
-        }
-        catch (AccountSuspendedException ex) {
-            throw new AccountSuspendedException(ex.getMessage());
-        }
-        catch (AccountDeletedException ex) {
-            throw new AccountDeletedException(ex.getMessage());
-        }
-        catch (ConcurrentSessionLimitException ex) {
-            throw new ConcurrentSessionLimitException(ex.getMessage());
-        }
-        catch (AccountLockedException ex) {
-            throw new AccountLockedException(ex.getMessage());
-        }
-        catch (JwtGenerationException ex) {
-            throw new JwtGenerationException(ex.getMessage());
+        catch (EmailNotVerifiedException | AccountSuspendedException | AccountDeletedException
+               | ConcurrentSessionLimitException | AccountLockedException | JwtGenerationException ex) {
+            throw ex;
         }
         catch (RuntimeException ex) {
             throw new RuntimeException(ex);

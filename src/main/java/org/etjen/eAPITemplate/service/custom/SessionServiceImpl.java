@@ -3,6 +3,7 @@ package org.etjen.eAPITemplate.service.custom;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.etjen.eAPITemplate.domain.model.RefreshToken;
+import org.etjen.eAPITemplate.exception.auth.MissingAuthenticationCredentialsException;
 import org.etjen.eAPITemplate.exception.auth.jwt.RefreshTokenNotFoundException;
 import org.etjen.eAPITemplate.exception.auth.jwt.RefreshTokensForUserNotFoundException;
 import org.etjen.eAPITemplate.repository.RefreshTokenRepository;
@@ -23,19 +24,29 @@ public class SessionServiceImpl implements SessionService {
     @Override
     public List<SessionDto> list(Long userId) {
         List<RefreshToken> tokens = refreshTokenRepository.findByUserId(userId).orElseThrow(() -> new RefreshTokensForUserNotFoundException(userId));
-        // pull the JTI from the SecurityContext from credentials where we stored it
-        String currentJti = SecurityContextHolder.getContext()
-                .getAuthentication()
-                .getCredentials().toString();
+        String currentJti;
+        try {
+            // pull the JTI from the SecurityContext from credentials where we stored it
+            currentJti = SecurityContextHolder.getContext()
+                    .getAuthentication()
+                    .getCredentials().toString();
+        } catch (NullPointerException ex) {
+            throw new MissingAuthenticationCredentialsException("Missing refresh token id in credentials");
+        }
         return sessionMapper.toDtos(tokens, currentJti);
     }
 
     @Override
     public SessionDto get(Long userId, String tokenId) {
         RefreshToken token = refreshTokenRepository.findByTokenId(tokenId).orElseThrow(() -> new RefreshTokenNotFoundException(tokenId, userId));
-        String currentJti = SecurityContextHolder.getContext()
-                .getAuthentication()
-                .getCredentials().toString();
+        String currentJti;
+        try {
+            currentJti = SecurityContextHolder.getContext()
+                    .getAuthentication()
+                    .getCredentials().toString();
+        } catch (NullPointerException ex) {
+            throw new MissingAuthenticationCredentialsException("Missing refresh token id in credentials");
+        }
         return sessionMapper.toDto(token, currentJti);
     }
 

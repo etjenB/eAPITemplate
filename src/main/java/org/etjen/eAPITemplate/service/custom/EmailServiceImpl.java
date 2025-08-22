@@ -21,7 +21,7 @@ public class EmailServiceImpl implements EmailService {
     public void sendVerificationMail(User user, String token) {
         String verifyLink = UriComponentsBuilder
                 .fromUriString(appProperties.baseUrl())
-                .path("/auth/verify")
+                .pathSegment("auth","verify")
                 .queryParam("token", token)
                 .toUriString();
         EmailOutbox row = EmailOutbox.builder()
