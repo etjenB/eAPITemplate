@@ -1,7 +1,7 @@
 package org.etjen.eAPITemplate.security.provider;
 
 import jakarta.annotation.PostConstruct;
-import org.etjen.eAPITemplate.exception.auth.AccountLockedException;
+import lombok.RequiredArgsConstructor;
 import org.etjen.eAPITemplate.exception.auth.CustomUnauthorizedException;
 import org.etjen.eAPITemplate.exception.auth.UserNotFoundException;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -11,9 +11,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.etjen.eAPITemplate.security.user.UserDetailsServiceImpl;
 import org.etjen.eAPITemplate.security.user.UserPrincipal;
-import java.time.Instant;
 
 @Component
+@RequiredArgsConstructor
 public class CustomAuthenticationProvider implements AuthenticationProvider {
     private final UserDetailsServiceImpl userDetailsService;
     private final PasswordEncoder passwordEncoder;
@@ -24,13 +24,8 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
         userNotFoundEncodedPassword = passwordEncoder.encode("userNotFoundButYouDontKnow");
     }
 
-    public CustomAuthenticationProvider(UserDetailsServiceImpl userDetailsService, PasswordEncoder passwordEncoder) {
-        this.userDetailsService = userDetailsService;
-        this.passwordEncoder = passwordEncoder;
-    }
-
     @Override
-    public Authentication authenticate(Authentication auth) throws CustomUnauthorizedException, AccountLockedException {
+    public Authentication authenticate(Authentication auth) throws CustomUnauthorizedException {
         String username = auth.getName();
         String rawPassword = auth.getCredentials().toString();
 
@@ -45,10 +40,6 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
         } catch (UserNotFoundException e) {
             passwordEncoder.matches(rawPassword, userNotFoundEncodedPassword);
             throw new CustomUnauthorizedException();
-        }
-
-        if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now())){
-            throw new AccountLockedException();
         }
 
         if (passwordEncoder.matches(rawPassword, user.getPassword())) {

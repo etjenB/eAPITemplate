@@ -504,7 +504,7 @@ public class UserServiceTests {
                 .password(HASHED_DEFAULT_PASSWORD)
                 .failedLoginAttempts(10)            // will be reset to 0
                 .accountNonLocked(false)           // will be unlocked
-                .lockedUntil(Instant.now().plus(Duration.ofMinutes(15)))
+                .lockedUntil(Instant.now().minus(Duration.ofMinutes(1)))
                 .status(AccountStatus.ACTIVE)
                 .roles(Set.of(roleUser))
                 .build();
@@ -678,6 +678,40 @@ public class UserServiceTests {
         // then
         assertThrowsExactly(CustomUnauthorizedException.class, () -> userServiceImpl.login(DEFAULT_USERNAME, DEFAULT_PASSWORD, false));
         verify(authenticationManager).authenticate(any(Authentication.class));
+    }
+
+    @Test
+    void givenValidLoginRequestForUserLockedAccount_whenLogin_thenThrowAccountLockedException() {
+        // given
+        int numberOfFailedLoginAttempts = 10;
+        User user = User.builder()
+                .id(42L)
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(HASHED_DEFAULT_PASSWORD)
+                .failedLoginAttempts(numberOfFailedLoginAttempts)   // will stay same
+                .accountNonLocked(false)                            // will stay locked
+                .lockedUntil(Instant.now().plus(Duration.ofMinutes(10)))
+                .status(AccountStatus.ACTIVE)
+                .roles(Set.of(roleUser))
+                .build();
+        var principal = new UserPrincipal(user);
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                principal, "ignored", principal.getAuthorities());
+        BDDMockito.given(authenticationManager.authenticate(any(Authentication.class)))
+                .willReturn(auth);
+        BDDMockito.given(userRepository.findByUsername(user.getUsername())).willReturn(Optional.of(user));
+
+        // when
+
+        // then
+        assertThrowsExactly(AccountLockedException.class, () -> userServiceImpl.login(DEFAULT_USERNAME, DEFAULT_PASSWORD, false));
+        verify(authenticationManager).authenticate(any(Authentication.class));
+        verify(userRepository).findByUsername(anyString());
+        verifyNoMoreInteractions(userRepository);
+        verifyNoInteractions(refreshTokenRepository);
+        assertEquals(numberOfFailedLoginAttempts, user.getFailedLoginAttempts());
+        assertFalse(user.isAccountNonLocked());
     }
 
     @Test

@@ -125,6 +125,9 @@ public class UserServiceImpl implements UserService {
                     new UsernamePasswordAuthenticationToken(username, password)
             );
             User user = userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedException::new);
+            if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now())){
+                throw new AccountLockedException();
+            }
             switch (user.getStatus()) {
                 case PENDING_VERIFICATION -> throw new EmailNotVerifiedException();
                 case SUSPENDED -> throw new AccountSuspendedException();
