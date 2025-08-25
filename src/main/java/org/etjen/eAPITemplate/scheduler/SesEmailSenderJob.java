@@ -23,7 +23,7 @@ public class SesEmailSenderJob {
     private final EmailOutboxRepository emailOutboxRepository;
     private final MailSender mailSender;
 
-    @Scheduled(fixedDelayString = "${email.ses.retry-backoff}")
+    @Scheduled(fixedDelayString = "${email.ses.retryBackoff}")
     @Transactional
     public void dispatch() {
         PageRequest page = PageRequest.of(0, 500);

@@ -11,11 +11,14 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestCookieException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import java.net.URI;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.etjen.eAPITemplate.exception.ExceptionEnums.*;
 
@@ -286,8 +289,48 @@ public class GlobalExceptionHandler {
         pd.setTitle("Invalid request");
         pd.setProperty("hostname", request.getHeader("Host"));
         pd.setProperty("code", MethodArgumentNotValidExceptionCode.getCode());
+        var errors = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> {
+                    // Use a map that tolerates optional adds; add rejectedValue only if present
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("field", safe(fe.getField()));
+                    m.put("message", safe(fe.getDefaultMessage()));
+                    m.put("reason", reasonFrom(fe));
+                    var rejected = redactIfSensitive(fe); // may be null
+                    if (rejected != null) m.put("rejectedValue", rejected);
+                    return m;
+                })
+                .toList();
+        pd.setProperty("errors", errors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(pd);
     }
+
+    @SuppressWarnings("D")
+    private String reasonFrom(FieldError fe) {
+        // Spring’s “codes” array starts most-specific first. Use it to infer a stable reason.
+        // Example codes: ["UniqueUsername.registrationRequest.username", "UniqueUsername.username", "UniqueUsername.java.lang.String", "UniqueUsername"]
+        assert fe.getCodes() != null;
+        for (String c : fe.getCodes()) {
+            if (c.startsWith("UniqueUsername")) return "UniqueUsername";
+            if (c.startsWith("UniqueEmail"))    return "UniqueEmail";
+            if (c.startsWith("Password"))       return "PasswordInvalid";
+            if (c.startsWith("Size"))           return "Size";
+            if (c.startsWith("NotBlank"))       return "NotBlank";
+            if (c.startsWith("Email"))          return "Email";
+            if (c.startsWith("Pattern"))        return "Pattern";
+        }
+        return "Validation";
+    }
+
+    private Object redactIfSensitive(FieldError fe) {
+        if ("password".equals(fe.getField())) return null; // never echo passwords
+        var rv = fe.getRejectedValue();
+        if (rv == null) return null;
+        var s = rv.toString();
+        return s.length() > 120 ? s.substring(0, 117) + "…" : s; // avoid huge payloads
+    }
+
+    private static String safe(String s) { return s == null ? "" : s; }
 
     // ? DATABASE ----------------------------------------------------------------------------------------------------------------------------------------------------
 
