@@ -1,6 +1,7 @@
 package org.etjen.eAPITemplate.unit.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.Cookie;
 import org.etjen.eAPITemplate.config.properties.security.JwtProperties;
 import org.etjen.eAPITemplate.config.properties.web.ValidationProperties;
 import org.etjen.eAPITemplate.exception.auth.AccountDeletedException;
@@ -12,12 +13,16 @@ import org.etjen.eAPITemplate.security.jwt.JwtService;
 import org.etjen.eAPITemplate.service.CompromisedPasswordChecker;
 import org.etjen.eAPITemplate.service.UserService;
 import org.etjen.eAPITemplate.web.controller.AuthController;
+import org.etjen.eAPITemplate.web.payload.auth.LoginRequest;
 import org.etjen.eAPITemplate.web.payload.auth.RegistrationRequest;
+import org.etjen.eAPITemplate.web.payload.auth.TokenPair;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.password.CompromisedPasswordDecision;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -25,11 +30,16 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
 
+import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers = AuthController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -52,9 +62,14 @@ public class AuthControllerTests {
     private ValidationProperties validationProperties;
     @MockitoBean
     private UserRepository userRepository;
-    private final RegistrationRequest registrationRequest = new RegistrationRequest("userb", "userb@gmail.com", "Corners8829%");
+    private final String DEFAULT_REFRESH_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJ1c2VyYiIsImp0aSI6Ijg1ZTUxNzBmLWI3YWItNDdiNy1iNTdhLWYzM2EzNGViMTE3NSIsImlhdCI6MTc1NDQ4MjcyMywiZXhwIjoxNzU5NjY2NzIzfQ.IBZTGjR2nCwr7K36hOoYeoQGhh90wENRSmLmvkWKTK58Dtmt3ghqpEZBGrpbKvPJctZlVe9y0RKt-HT5PQ-mXg";
+    private final String DEFAULT_ACCESS_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlcyI6WyJST0xFX1VTRVIiXSwic3ViIjoidXNlcmIiLCJqdGkiOiI1YzYzYzdlYi01ZDFjLTRkYWYtODIwYS1kMjgwMzIwMDU1NDgiLCJpYXQiOjE3NTU0NDkwMzcsImV4cCI6MTc1NTQ1MDIzN30.xQIiKft8OKxySzrmp3vOPI81Dz9-OdtxH1EG9BftFPvLRrkWcJs6fubwWsG_o92-r5vp41qyus9RsE7YEX_a6g";
+    private final String DEFAULT_USERNAME = "userb";
+    private final String DEFAULT_PASSWORD = "Corners8829%";
+    private final RegistrationRequest registrationRequest = new RegistrationRequest(DEFAULT_USERNAME, "userb@gmail.com", DEFAULT_PASSWORD);
+    private final LoginRequest loginRequest = new LoginRequest(DEFAULT_USERNAME, DEFAULT_PASSWORD);
+    private final TokenPair tokenPair = new TokenPair(DEFAULT_ACCESS_TOKEN, DEFAULT_REFRESH_TOKEN);
     private final String verifyToken = "token";
-    
     // ! register
 
     @Test
@@ -74,7 +89,7 @@ public class AuthControllerTests {
         );
 
         // then
-        resultActions.andExpect(MockMvcResultMatchers.status().isCreated());
+        resultActions.andExpect(status().isCreated());
         verify(userService, only()).register(registrationRequest);
     }
 
@@ -96,7 +111,7 @@ public class AuthControllerTests {
         );
 
         // then
-        resultActions.andExpect(MockMvcResultMatchers.status().isCreated());
+        resultActions.andExpect(status().isCreated());
         verify(userService, only()).register(registrationRequest);
     }
 
@@ -117,7 +132,7 @@ public class AuthControllerTests {
         );
 
         // then
-        resultActions.andExpect(MockMvcResultMatchers.status().isBadRequest())
+        resultActions.andExpect(status().isBadRequest())
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].field").value("password"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].reason").value("PasswordInvalid"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].rejectedValue").doesNotExist());
@@ -142,7 +157,7 @@ public class AuthControllerTests {
         );
 
         // then
-        resultActions.andExpect(MockMvcResultMatchers.status().isBadRequest())
+        resultActions.andExpect(status().isBadRequest())
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].field").value("password"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].reason").value("PasswordInvalid"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].rejectedValue").doesNotExist());
@@ -167,7 +182,7 @@ public class AuthControllerTests {
         );
 
         // then
-        resultActions.andExpect(MockMvcResultMatchers.status().isBadRequest())
+        resultActions.andExpect(status().isBadRequest())
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].field").value("password"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].reason").value("PasswordInvalid"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].rejectedValue").doesNotExist());
@@ -192,7 +207,7 @@ public class AuthControllerTests {
         );
 
         // then
-        resultActions.andExpect(MockMvcResultMatchers.status().isBadRequest())
+        resultActions.andExpect(status().isBadRequest())
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].field").value("password"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].reason").value("PasswordInvalid"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].rejectedValue").doesNotExist());
@@ -217,7 +232,7 @@ public class AuthControllerTests {
         );
 
         // then
-        resultActions.andExpect(MockMvcResultMatchers.status().isBadRequest())
+        resultActions.andExpect(status().isBadRequest())
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].field").value("password"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].reason").value("PasswordInvalid"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].rejectedValue").doesNotExist());
@@ -241,7 +256,7 @@ public class AuthControllerTests {
         );
 
         // then
-        resultActions.andExpect(MockMvcResultMatchers.status().isBadRequest())
+        resultActions.andExpect(status().isBadRequest())
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].field").value("username"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].reason").value("UniqueUsername"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].rejectedValue").value(registrationRequest.username()));
@@ -265,7 +280,7 @@ public class AuthControllerTests {
         );
 
         // then
-        resultActions.andExpect(MockMvcResultMatchers.status().isBadRequest())
+        resultActions.andExpect(status().isBadRequest())
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].field").value("email"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].reason").value("UniqueEmail"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].rejectedValue").value(registrationRequest.email()));
@@ -284,7 +299,7 @@ public class AuthControllerTests {
         );
 
         // then
-        resultActions.andExpect(MockMvcResultMatchers.status().isNoContent());
+        resultActions.andExpect(status().isNoContent());
         verify(userService, only()).verify(verifyToken);
     }
 
@@ -299,7 +314,7 @@ public class AuthControllerTests {
         );
 
         // then
-        resultActions.andExpect(MockMvcResultMatchers.status().isNotFound());
+        resultActions.andExpect(status().isNotFound());
         verify(userService).verify(verifyToken);
     }
 
@@ -314,7 +329,7 @@ public class AuthControllerTests {
         );
 
         // then
-        resultActions.andExpect(MockMvcResultMatchers.status().isBadRequest());
+        resultActions.andExpect(status().isBadRequest());
         verify(userService).verify(verifyToken);
     }
 
@@ -329,10 +344,103 @@ public class AuthControllerTests {
         );
 
         // then
-        resultActions.andExpect(MockMvcResultMatchers.status().isGone());
+        resultActions.andExpect(status().isGone());
         verify(userService).verify(verifyToken);
     }
 
     // ! logout
+
+    @Test
+    void givenRefreshTokenInCookie_whenLogout_thenDeleteCookie() throws Exception {
+        // given
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                    post("/auth/logout")
+                            .cookie(new Cookie("refresh_token", DEFAULT_REFRESH_TOKEN))
+        );
+
+        // then
+        resultActions.andExpect(status().isNoContent())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
+                        containsString("refresh_token="),
+                        containsString("Max-Age=0")
+                )));
+        ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
+        verify(userService).logout(tokenCaptor.capture());
+        assertEquals(DEFAULT_REFRESH_TOKEN, tokenCaptor.getValue());
+    }
+
+    @Test
+    void givenRefreshTokenInHeader_whenLogout_thenDeleteCookie() throws Exception {
+        // given
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/logout")
+                        .header("X-Refresh-Token", DEFAULT_REFRESH_TOKEN)
+        );
+
+        // then
+        resultActions.andExpect(status().isNoContent())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
+                        containsString("refresh_token="),
+                        containsString("Max-Age=0")
+                )));
+        ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
+        verify(userService).logout(tokenCaptor.capture());
+        assertEquals(DEFAULT_REFRESH_TOKEN, tokenCaptor.getValue());
+    }
+
+    @Test
+    void givenRefreshTokenMissing_whenLogout_thenNoServiceCallDeleteCookie() throws Exception {
+        // given
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/logout")
+        );
+
+        // then
+        resultActions.andExpect(status().isNoContent())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
+                        containsString("refresh_token="),
+                        containsString("Max-Age=0")
+                )));
+        verify(userService, never()).logout(anyString());
+    }
+
+    // ! login
+
+    @Test
+    void givenValidLoginRequest_whenLogin_thenReturnTokens() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        BDDMockito.given(userService.login(loginRequest.username(), loginRequest.password(), revokeOldest)).willReturn(tokenPair);
+        Duration jwtExpiration = Duration.ofMinutes(20);
+        BDDMockito.given(jwtProperties.expiration()).willReturn(jwtExpiration);
+        Duration jwtRefreshTokenExpiration = Duration.ofDays(60);
+        BDDMockito.given(jwtService.extractExpiration(tokenPair.refreshToken())).willReturn(Date.from(Instant.now().plus(jwtRefreshTokenExpiration)));
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest))
+        );
+
+        // then
+        verify(userService).login(loginRequest.username(), loginRequest.password(), revokeOldest);
+        resultActions.andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
+                        containsString("refresh_token=" + DEFAULT_REFRESH_TOKEN),
+                        containsString("HttpOnly"),
+                        containsString("Secure")
+                )))
+                .andExpect(jsonPath("$.access_token", is(tokenPair.accessToken())))
+                .andExpect(jsonPath("$.expires_in_ms").value((int) jwtExpiration.toMillis()))
+                .andExpect(jsonPath("$.token_type", is("Bearer")));
+    }
 
 }
