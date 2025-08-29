@@ -133,9 +133,9 @@ public class AuthControllerTests {
 
         // then
         resultActions.andExpect(status().isBadRequest())
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].field").value("password"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].reason").value("PasswordInvalid"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].rejectedValue").doesNotExist());
+                .andExpect(jsonPath("$..errors[0].field").value("password"))
+                .andExpect(jsonPath("$..errors[0].reason").value("PasswordInvalid"))
+                .andExpect(jsonPath("$..errors[0].rejectedValue").doesNotExist());
         verifyNoInteractions(userService);
     }
 
@@ -158,9 +158,9 @@ public class AuthControllerTests {
 
         // then
         resultActions.andExpect(status().isBadRequest())
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].field").value("password"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].reason").value("PasswordInvalid"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].rejectedValue").doesNotExist());
+                .andExpect(jsonPath("$..errors[0].field").value("password"))
+                .andExpect(jsonPath("$..errors[0].reason").value("PasswordInvalid"))
+                .andExpect(jsonPath("$..errors[0].rejectedValue").doesNotExist());
         verifyNoInteractions(userService);
     }
 
@@ -183,9 +183,9 @@ public class AuthControllerTests {
 
         // then
         resultActions.andExpect(status().isBadRequest())
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].field").value("password"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].reason").value("PasswordInvalid"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].rejectedValue").doesNotExist());
+                .andExpect(jsonPath("$..errors[0].field").value("password"))
+                .andExpect(jsonPath("$..errors[0].reason").value("PasswordInvalid"))
+                .andExpect(jsonPath("$..errors[0].rejectedValue").doesNotExist());
         verifyNoInteractions(userService);
     }
 
@@ -208,9 +208,9 @@ public class AuthControllerTests {
 
         // then
         resultActions.andExpect(status().isBadRequest())
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].field").value("password"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].reason").value("PasswordInvalid"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].rejectedValue").doesNotExist());
+                .andExpect(jsonPath("$..errors[0].field").value("password"))
+                .andExpect(jsonPath("$..errors[0].reason").value("PasswordInvalid"))
+                .andExpect(jsonPath("$..errors[0].rejectedValue").doesNotExist());
         verifyNoInteractions(userService);
     }
 
@@ -233,9 +233,9 @@ public class AuthControllerTests {
 
         // then
         resultActions.andExpect(status().isBadRequest())
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].field").value("password"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].reason").value("PasswordInvalid"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].rejectedValue").doesNotExist());
+                .andExpect(jsonPath("$..errors[0].field").value("password"))
+                .andExpect(jsonPath("$..errors[0].reason").value("PasswordInvalid"))
+                .andExpect(jsonPath("$..errors[0].rejectedValue").doesNotExist());
         verifyNoInteractions(userService);
     }
 
@@ -257,9 +257,9 @@ public class AuthControllerTests {
 
         // then
         resultActions.andExpect(status().isBadRequest())
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].field").value("username"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].reason").value("UniqueUsername"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].rejectedValue").value(registrationRequest.username()));
+                .andExpect(jsonPath("$..errors[0].field").value("username"))
+                .andExpect(jsonPath("$..errors[0].reason").value("UniqueUsername"))
+                .andExpect(jsonPath("$..errors[0].rejectedValue").value(registrationRequest.username()));
         verifyNoInteractions(userService);
     }
 
@@ -281,9 +281,9 @@ public class AuthControllerTests {
 
         // then
         resultActions.andExpect(status().isBadRequest())
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].field").value("email"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].reason").value("UniqueEmail"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$..errors[0].rejectedValue").value(registrationRequest.email()));
+                .andExpect(jsonPath("$..errors[0].field").value("email"))
+                .andExpect(jsonPath("$..errors[0].reason").value("UniqueEmail"))
+                .andExpect(jsonPath("$..errors[0].rejectedValue").value(registrationRequest.email()));
         verifyNoInteractions(userService);
     }
     
@@ -432,6 +432,37 @@ public class AuthControllerTests {
 
         // then
         verify(userService).login(loginRequest.username(), loginRequest.password(), revokeOldest);
+        resultActions.andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
+                        containsString("refresh_token=" + DEFAULT_REFRESH_TOKEN),
+                        containsString("HttpOnly"),
+                        containsString("Secure")
+                )))
+                .andExpect(jsonPath("$.access_token", is(tokenPair.accessToken())))
+                .andExpect(jsonPath("$.expires_in_ms").value((int) jwtExpiration.toMillis()))
+                .andExpect(jsonPath("$.token_type", is("Bearer")));
+    }
+
+    // ! refresh
+
+    @Test
+    void givenRefreshTokenInCookie_whenRefresh_thenReturnTokens() throws Exception {
+        // given
+        final String oldToken = "oldtoken";
+        BDDMockito.given(userService.refresh(oldToken)).willReturn(tokenPair);
+        Duration jwtExpiration = Duration.ofMinutes(20);
+        BDDMockito.given(jwtProperties.expiration()).willReturn(jwtExpiration);
+        Duration jwtRefreshTokenExpiration = Duration.ofDays(60);
+        BDDMockito.given(jwtService.extractExpiration(tokenPair.refreshToken())).willReturn(Date.from(Instant.now().plus(jwtRefreshTokenExpiration)));
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldToken))
+        );
+
+        // then
+        verify(userService).refresh(oldToken);
         resultActions.andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
                         containsString("refresh_token=" + DEFAULT_REFRESH_TOKEN),
