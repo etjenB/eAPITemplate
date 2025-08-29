@@ -51,7 +51,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void register(RegistrationRequest registrationRequest) {
+    public void register(RegistrationRequest registrationRequest) throws AccountSuspendedException, AccountDeletedException, DuplicateEmailException {
         String token = UUID.randomUUID().toString();
         Instant expiry = Instant.now().plus(emailVerificationProperties.emailTokenTtl());
 
@@ -84,7 +84,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void verify(String token) {
+    public void verify(String token) throws EmailVerificationTokenNotFoundException, EmailVerificationTokenExpiredException, AccountDeletedException {
         EmailVerificationToken existingToken = emailVerificationTokenRepository.findByToken(token).orElseThrow(() -> new EmailVerificationTokenNotFoundException(token));
 
         if (existingToken.isUsed()) return;
@@ -104,7 +104,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void logout(String refreshToken) {
+    public void logout(String refreshToken) throws InvalidRefreshTokenException, RefreshTokenNotFoundException {
         String jti;
         try {
             jti = jwtService.extractAllClaims(refreshToken).getId();
@@ -119,7 +119,8 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public TokenPair login(String username, String password, boolean revokeOldest) {
+    public TokenPair login(String username, String password, boolean revokeOldest) throws CustomUnauthorizedException, AccountLockedException,
+            EmailNotVerifiedException, AccountSuspendedException, AccountDeletedException, ConcurrentSessionLimitException, JwtGenerationException {
         try {
             Authentication auth = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(username, password)
@@ -178,7 +179,7 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    public void onLoginFailure(String username) {
+    public void onLoginFailure(String username) throws CustomUnauthorizedException {
         User user = userRepository.findByUsername(username).orElseThrow(CustomUnauthorizedException::new);
         int attempts = user.getFailedLoginAttempts() + 1;
         user.setFailedLoginAttempts(attempts);
@@ -199,7 +200,7 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
     }
 
-    public void revokeOldestByUserId(Long userId) {
+    public void revokeOldestByUserId(Long userId) throws RefreshTokenNotFoundException {
         RefreshToken oldest = refreshTokenRepository
                 .findFirstByUserIdAndRevokedFalseOrderByIssuedAtAsc(userId)
                 .orElseThrow(() -> new RefreshTokenNotFoundException("No active tokens"));
@@ -210,7 +211,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public TokenPair refresh(String refreshJwt) throws InvalidRefreshTokenException, ExpiredOrRevokedRefreshTokenException {
+    public TokenPair refresh(String refreshJwt) throws InvalidRefreshTokenException, ExpiredOrRevokedRefreshTokenException,
+            EmailNotVerifiedException, AccountSuspendedException, AccountDeletedException {
         Claims claims;
         try {
             claims = jwtService.extractAllClaims(refreshJwt); // signature + exp checked here

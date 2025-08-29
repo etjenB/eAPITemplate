@@ -28,7 +28,6 @@ import org.springframework.security.authentication.password.CompromisedPasswordD
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
@@ -70,6 +69,7 @@ public class AuthControllerTests {
     private final LoginRequest loginRequest = new LoginRequest(DEFAULT_USERNAME, DEFAULT_PASSWORD);
     private final TokenPair tokenPair = new TokenPair(DEFAULT_ACCESS_TOKEN, DEFAULT_REFRESH_TOKEN);
     private final String verifyToken = "token";
+
     // ! register
 
     @Test
@@ -473,5 +473,4 @@ public class AuthControllerTests {
                 .andExpect(jsonPath("$.expires_in_ms").value((int) jwtExpiration.toMillis()))
                 .andExpect(jsonPath("$.token_type", is("Bearer")));
     }
-
 }

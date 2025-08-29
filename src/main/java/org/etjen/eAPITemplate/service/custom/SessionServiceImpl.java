@@ -22,7 +22,7 @@ public class SessionServiceImpl implements SessionService {
     private final SessionMapper sessionMapper;
 
     @Override
-    public List<SessionDto> list(Long userId) {
+    public List<SessionDto> list(Long userId) throws RefreshTokensForUserNotFoundException, MissingAuthenticationCredentialsException {
         List<RefreshToken> tokens = refreshTokenRepository.findByUserId(userId).orElseThrow(() -> new RefreshTokensForUserNotFoundException(userId));
         String currentJti;
         try {
@@ -37,7 +37,7 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
-    public SessionDto get(Long userId, String tokenId) {
+    public SessionDto get(Long userId, String tokenId) throws RefreshTokenNotFoundException, MissingAuthenticationCredentialsException {
         RefreshToken token = refreshTokenRepository.findByTokenId(tokenId).orElseThrow(() -> new RefreshTokenNotFoundException(tokenId, userId));
         String currentJti;
         try {
@@ -51,7 +51,7 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
-    public void revoke(Long userId, String tokenId) {
+    public void revoke(Long userId, String tokenId) throws RefreshTokenNotFoundException {
         int updated = refreshTokenRepository
                 .revokeByTokenIdAndUserId(tokenId, userId);
         if (updated == 0) {
@@ -60,7 +60,7 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
-    public void revokeAll(Long userId) {
+    public void revokeAll(Long userId) throws RefreshTokensForUserNotFoundException {
         int updated = refreshTokenRepository
                 .revokeAllByUserId(userId);
         if (updated == 0) {
