@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
 import org.etjen.eAPITemplate.config.properties.security.JwtProperties;
 import org.etjen.eAPITemplate.config.properties.web.ValidationProperties;
-import org.etjen.eAPITemplate.exception.auth.AccountDeletedException;
-import org.etjen.eAPITemplate.exception.auth.EmailVerificationTokenExpiredException;
-import org.etjen.eAPITemplate.exception.auth.EmailVerificationTokenNotFoundException;
+import org.etjen.eAPITemplate.exception.auth.*;
+import org.etjen.eAPITemplate.exception.auth.jwt.ExpiredOrRevokedRefreshTokenException;
+import org.etjen.eAPITemplate.exception.auth.jwt.InvalidRefreshTokenException;
+import org.etjen.eAPITemplate.exception.auth.jwt.JwtGenerationException;
+import org.etjen.eAPITemplate.exception.auth.jwt.RefreshTokenNotFoundException;
 import org.etjen.eAPITemplate.repository.EmailVerificationTokenRepository;
 import org.etjen.eAPITemplate.repository.UserRepository;
 import org.etjen.eAPITemplate.security.jwt.JwtService;
@@ -65,10 +67,10 @@ public class AuthControllerTests {
     private final String DEFAULT_ACCESS_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlcyI6WyJST0xFX1VTRVIiXSwic3ViIjoidXNlcmIiLCJqdGkiOiI1YzYzYzdlYi01ZDFjLTRkYWYtODIwYS1kMjgwMzIwMDU1NDgiLCJpYXQiOjE3NTU0NDkwMzcsImV4cCI6MTc1NTQ1MDIzN30.xQIiKft8OKxySzrmp3vOPI81Dz9-OdtxH1EG9BftFPvLRrkWcJs6fubwWsG_o92-r5vp41qyus9RsE7YEX_a6g";
     private final String DEFAULT_USERNAME = "userb";
     private final String DEFAULT_PASSWORD = "Corners8829%";
-    private final RegistrationRequest registrationRequest = new RegistrationRequest(DEFAULT_USERNAME, "userb@gmail.com", DEFAULT_PASSWORD);
-    private final LoginRequest loginRequest = new LoginRequest(DEFAULT_USERNAME, DEFAULT_PASSWORD);
-    private final TokenPair tokenPair = new TokenPair(DEFAULT_ACCESS_TOKEN, DEFAULT_REFRESH_TOKEN);
-    private final String verifyToken = "token";
+    private final RegistrationRequest defaultRegistrationRequest = new RegistrationRequest(DEFAULT_USERNAME, "userb@gmail.com", DEFAULT_PASSWORD);
+    private final LoginRequest defaultLoginRequest = new LoginRequest(DEFAULT_USERNAME, DEFAULT_PASSWORD);
+    private final TokenPair defaultTokenPair = new TokenPair(DEFAULT_ACCESS_TOKEN, DEFAULT_REFRESH_TOKEN);
+    private final String defaultVerifyToken = "token";
 
     // ! register
 
@@ -76,21 +78,21 @@ public class AuthControllerTests {
     void givenValidRegistrationRequest_whenRegister_thenReturnHttpStatusCreated() throws Exception {
         // given
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
-        BDDMockito.given(compromisedPasswordChecker.check(registrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(registrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(compromisedPasswordChecker.check(defaultRegistrationRequest.password())).willReturn(compromisedPasswordDecision);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
-        BDDMockito.given(userRepository.existsByUsernameIgnoreCase(registrationRequest.username())).willReturn(false);
+        BDDMockito.given(userRepository.existsByUsernameIgnoreCase(defaultRegistrationRequest.username())).willReturn(false);
 
         // when
         ResultActions resultActions = mockMvc.perform(
                 post("/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(registrationRequest))
+                .content(objectMapper.writeValueAsString(defaultRegistrationRequest))
         );
 
         // then
         resultActions.andExpect(status().isCreated());
-        verify(userService, only()).register(registrationRequest);
+        verify(userService, only()).register(defaultRegistrationRequest);
     }
 
     @Test
@@ -119,16 +121,16 @@ public class AuthControllerTests {
     void givenInvalidRegistrationRequestPasswordCompromised_whenRegister_thenReturnHttpStatusBadRequestAndErrors() throws Exception {
         // given
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(true); // password compromised
-        BDDMockito.given(compromisedPasswordChecker.check(registrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(registrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(compromisedPasswordChecker.check(defaultRegistrationRequest.password())).willReturn(compromisedPasswordDecision);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
-        BDDMockito.given(userRepository.existsByUsernameIgnoreCase(registrationRequest.username())).willReturn(false);
+        BDDMockito.given(userRepository.existsByUsernameIgnoreCase(defaultRegistrationRequest.username())).willReturn(false);
 
         // when
         ResultActions resultActions = mockMvc.perform(
                 post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(registrationRequest))
+                        .content(objectMapper.writeValueAsString(defaultRegistrationRequest))
         );
 
         // then
@@ -243,23 +245,23 @@ public class AuthControllerTests {
     void givenInvalidRegistrationRequestExistingUsername_whenRegister_thenReturnHttpStatusBadRequestAndErrors() throws Exception {
         // given
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
-        BDDMockito.given(compromisedPasswordChecker.check(registrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(registrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(compromisedPasswordChecker.check(defaultRegistrationRequest.password())).willReturn(compromisedPasswordDecision);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
-        BDDMockito.given(userRepository.existsByUsernameIgnoreCase(registrationRequest.username())).willReturn(true); // username exists
+        BDDMockito.given(userRepository.existsByUsernameIgnoreCase(defaultRegistrationRequest.username())).willReturn(true); // username exists
 
         // when
         ResultActions resultActions = mockMvc.perform(
                 post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(registrationRequest))
+                        .content(objectMapper.writeValueAsString(defaultRegistrationRequest))
         );
 
         // then
         resultActions.andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$..errors[0].field").value("username"))
                 .andExpect(jsonPath("$..errors[0].reason").value("UniqueUsername"))
-                .andExpect(jsonPath("$..errors[0].rejectedValue").value(registrationRequest.username()));
+                .andExpect(jsonPath("$..errors[0].rejectedValue").value(defaultRegistrationRequest.username()));
         verifyNoInteractions(userService);
     }
 
@@ -267,24 +269,93 @@ public class AuthControllerTests {
     void givenInvalidRegistrationRequestEmailCooldown_whenRegister_thenReturnHttpStatusBadRequestAndErrors() throws Exception {
         // given
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
-        BDDMockito.given(compromisedPasswordChecker.check(registrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(registrationRequest.email()), any())).willReturn(true); // someone requested a token < cooldown ago
+        BDDMockito.given(compromisedPasswordChecker.check(defaultRegistrationRequest.password())).willReturn(compromisedPasswordDecision);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(defaultRegistrationRequest.email()), any())).willReturn(true); // someone requested a token < cooldown ago
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
-        BDDMockito.given(userRepository.existsByUsernameIgnoreCase(registrationRequest.username())).willReturn(false);
+        BDDMockito.given(userRepository.existsByUsernameIgnoreCase(defaultRegistrationRequest.username())).willReturn(false);
 
         // when
         ResultActions resultActions = mockMvc.perform(
                 post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(registrationRequest))
+                        .content(objectMapper.writeValueAsString(defaultRegistrationRequest))
         );
 
         // then
         resultActions.andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$..errors[0].field").value("email"))
                 .andExpect(jsonPath("$..errors[0].reason").value("UniqueEmail"))
-                .andExpect(jsonPath("$..errors[0].rejectedValue").value(registrationRequest.email()));
+                .andExpect(jsonPath("$..errors[0].rejectedValue").value(defaultRegistrationRequest.email()));
         verifyNoInteractions(userService);
+    }
+
+    @Test
+    void givenRegistrationRequestAccountSuspendedException_whenRegister_thenReturnHttpStatusForbidden() throws Exception {
+        // given
+        CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
+        BDDMockito.given(compromisedPasswordChecker.check(defaultRegistrationRequest.password())).willReturn(compromisedPasswordDecision);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
+        BDDMockito.given(userRepository.existsByUsernameIgnoreCase(defaultRegistrationRequest.username())).willReturn(false);
+        BDDMockito.willThrow(AccountSuspendedException.class).given(userService).register(defaultRegistrationRequest);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultRegistrationRequest))
+        );
+
+        // then
+        verify(userService, only()).register(defaultRegistrationRequest);
+        resultActions.andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(AccountSuspendedException.code));
+    }
+
+    @Test
+    void givenRegistrationRequestAccountDeletedException_whenRegister_thenReturnHttpStatusGone() throws Exception {
+        // given
+        CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
+        BDDMockito.given(compromisedPasswordChecker.check(defaultRegistrationRequest.password())).willReturn(compromisedPasswordDecision);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
+        BDDMockito.given(userRepository.existsByUsernameIgnoreCase(defaultRegistrationRequest.username())).willReturn(false);
+        BDDMockito.willThrow(AccountDeletedException.class).given(userService).register(defaultRegistrationRequest);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultRegistrationRequest))
+        );
+
+        // then
+        verify(userService, only()).register(defaultRegistrationRequest);
+        resultActions.andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value(AccountDeletedException.code));
+    }
+
+    @Test
+    void givenRegistrationRequestDuplicateEmailException_whenRegister_thenReturnHttpStatusConflict() throws Exception {
+        // given
+        CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
+        BDDMockito.given(compromisedPasswordChecker.check(defaultRegistrationRequest.password())).willReturn(compromisedPasswordDecision);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
+        BDDMockito.given(userRepository.existsByUsernameIgnoreCase(defaultRegistrationRequest.username())).willReturn(false);
+        BDDMockito.willThrow(DuplicateEmailException.class).given(userService).register(defaultRegistrationRequest);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultRegistrationRequest))
+        );
+
+        // then
+        verify(userService, only()).register(defaultRegistrationRequest);
+        resultActions.andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(DuplicateEmailException.code));
     }
     
     // ! verify
@@ -295,57 +366,105 @@ public class AuthControllerTests {
 
         // when
         ResultActions resultActions = mockMvc.perform(
-                get("/auth/verify").param("token", verifyToken)
+                get("/auth/verify").param("token", defaultVerifyToken)
         );
 
         // then
         resultActions.andExpect(status().isNoContent());
-        verify(userService, only()).verify(verifyToken);
+        verify(userService, only()).verify(defaultVerifyToken);
     }
 
     @Test
     void givenNonExistingToken_whenVerify_thenReturnHttpStatusNotFound() throws Exception {
         // given
-        BDDMockito.willThrow(EmailVerificationTokenNotFoundException.class).given(userService).verify(verifyToken);
+        BDDMockito.willThrow(EmailVerificationTokenNotFoundException.class).given(userService).verify(defaultVerifyToken);
 
         // when
         ResultActions resultActions = mockMvc.perform(
-                get("/auth/verify").param("token", verifyToken)
+                get("/auth/verify").param("token", defaultVerifyToken)
         );
 
         // then
         resultActions.andExpect(status().isNotFound());
-        verify(userService).verify(verifyToken);
+        verify(userService).verify(defaultVerifyToken);
     }
 
     @Test
     void givenExpiredToken_whenVerify_thenReturnHttpStatusBadRequest() throws Exception {
         // given
-        BDDMockito.willThrow(EmailVerificationTokenExpiredException.class).given(userService).verify(verifyToken);
+        BDDMockito.willThrow(EmailVerificationTokenExpiredException.class).given(userService).verify(defaultVerifyToken);
 
         // when
         ResultActions resultActions = mockMvc.perform(
-                get("/auth/verify").param("token", verifyToken)
+                get("/auth/verify").param("token", defaultVerifyToken)
         );
 
         // then
         resultActions.andExpect(status().isBadRequest());
-        verify(userService).verify(verifyToken);
+        verify(userService).verify(defaultVerifyToken);
     }
 
     @Test
     void givenInvalidTokenAccountDeleted_whenVerify_thenReturnHttpStatusGone() throws Exception {
         // given
-        BDDMockito.willThrow(AccountDeletedException.class).given(userService).verify(verifyToken);
+        BDDMockito.willThrow(AccountDeletedException.class).given(userService).verify(defaultVerifyToken);
 
         // when
         ResultActions resultActions = mockMvc.perform(
-                get("/auth/verify").param("token", verifyToken)
+                get("/auth/verify").param("token", defaultVerifyToken)
         );
 
         // then
         resultActions.andExpect(status().isGone());
-        verify(userService).verify(verifyToken);
+        verify(userService).verify(defaultVerifyToken);
+    }
+
+    @Test
+    void givenTokenEmailVerificationTokenNotFoundException_whenVerify_thenReturnHttpStatusNotFound() throws Exception {
+        // given
+        BDDMockito.willThrow(EmailVerificationTokenNotFoundException.class).given(userService).verify(defaultVerifyToken);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                get("/auth/verify").param("token", defaultVerifyToken)
+        );
+
+        // then
+        verify(userService, only()).verify(defaultVerifyToken);
+        resultActions.andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(EmailVerificationTokenNotFoundException.code));
+    }
+
+    @Test
+    void givenTokenEmailVerificationTokenExpiredException_whenVerify_thenReturnHttpStatusBadRequest() throws Exception {
+        // given
+        BDDMockito.willThrow(EmailVerificationTokenExpiredException.class).given(userService).verify(defaultVerifyToken);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                get("/auth/verify").param("token", defaultVerifyToken)
+        );
+
+        // then
+        verify(userService, only()).verify(defaultVerifyToken);
+        resultActions.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(EmailVerificationTokenExpiredException.code));
+    }
+
+    @Test
+    void givenTokenAccountDeletedException_whenVerify_thenReturnHttpStatusGone() throws Exception {
+        // given
+        BDDMockito.willThrow(AccountDeletedException.class).given(userService).verify(defaultVerifyToken);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                get("/auth/verify").param("token", defaultVerifyToken)
+        );
+
+        // then
+        verify(userService, only()).verify(defaultVerifyToken);
+        resultActions.andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value(AccountDeletedException.code));
     }
 
     // ! logout
@@ -410,37 +529,211 @@ public class AuthControllerTests {
         verify(userService, never()).logout(anyString());
     }
 
+    @Test
+    void givenRefreshTokenInCookieInvalidRefreshTokenException_whenLogout_thenHttpStatusBadRequest() throws Exception {
+        // given
+        BDDMockito.willThrow(InvalidRefreshTokenException.class).given(userService).logout(DEFAULT_REFRESH_TOKEN);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/logout")
+                        .cookie(new Cookie("refresh_token", DEFAULT_REFRESH_TOKEN))
+        );
+
+        // then
+        verify(userService).logout(DEFAULT_REFRESH_TOKEN);
+        resultActions.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(InvalidRefreshTokenException.code));
+    }
+
+    @Test
+    void givenRefreshTokenInCookieRefreshTokenNotFoundException_whenLogout_thenHttpStatusNotFound() throws Exception {
+        // given
+        BDDMockito.willThrow(RefreshTokenNotFoundException.class).given(userService).logout(DEFAULT_REFRESH_TOKEN);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/logout")
+                        .cookie(new Cookie("refresh_token", DEFAULT_REFRESH_TOKEN))
+        );
+
+        // then
+        verify(userService).logout(DEFAULT_REFRESH_TOKEN);
+        resultActions.andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(RefreshTokenNotFoundException.code));
+    }
+
     // ! login
 
     @Test
     void givenValidLoginRequest_whenLogin_thenReturnTokens() throws Exception {
         // given
         Boolean revokeOldest = true;
-        BDDMockito.given(userService.login(loginRequest.username(), loginRequest.password(), revokeOldest)).willReturn(tokenPair);
+        BDDMockito.given(userService.login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest)).willReturn(defaultTokenPair);
         Duration jwtExpiration = Duration.ofMinutes(20);
         BDDMockito.given(jwtProperties.expiration()).willReturn(jwtExpiration);
         Duration jwtRefreshTokenExpiration = Duration.ofDays(60);
-        BDDMockito.given(jwtService.extractExpiration(tokenPair.refreshToken())).willReturn(Date.from(Instant.now().plus(jwtRefreshTokenExpiration)));
+        BDDMockito.given(jwtService.extractExpiration(defaultTokenPair.refreshToken())).willReturn(Date.from(Instant.now().plus(jwtRefreshTokenExpiration)));
 
         // when
         ResultActions resultActions = mockMvc.perform(
                 post("/auth/login")
                         .param("revokeOldest", String.valueOf(revokeOldest))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginRequest))
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
         );
 
         // then
-        verify(userService).login(loginRequest.username(), loginRequest.password(), revokeOldest);
+        verify(userService).login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest);
         resultActions.andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
                         containsString("refresh_token=" + DEFAULT_REFRESH_TOKEN),
                         containsString("HttpOnly"),
                         containsString("Secure")
                 )))
-                .andExpect(jsonPath("$.access_token", is(tokenPair.accessToken())))
+                .andExpect(jsonPath("$.access_token", is(defaultTokenPair.accessToken())))
                 .andExpect(jsonPath("$.expires_in_ms").value((int) jwtExpiration.toMillis()))
                 .andExpect(jsonPath("$.token_type", is("Bearer")));
+    }
+
+    @Test
+    void givenLoginRequestCustomUnauthorizedException_whenLogin_thenHttpStatusBadRequest() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        BDDMockito.given(userService.login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest)).willThrow(CustomUnauthorizedException.class);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        verify(userService).login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest);
+        resultActions.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(CustomUnauthorizedException.code));
+    }
+
+    @Test
+    void givenLoginRequestAccountLockedException_whenLogin_thenHttpStatusLocked() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        BDDMockito.given(userService.login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest)).willThrow(AccountLockedException.class);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        verify(userService).login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest);
+        resultActions.andExpect(status().isLocked())
+                .andExpect(jsonPath("$.code").value(AccountLockedException.code));
+    }
+
+    @Test
+    void givenLoginRequestEmailNotVerifiedException_whenLogin_thenHttpStatusForbidden() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        BDDMockito.given(userService.login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest)).willThrow(EmailNotVerifiedException.class);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        verify(userService).login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest);
+        resultActions.andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(EmailNotVerifiedException.code));
+    }
+
+    @Test
+    void givenLoginRequestAccountSuspendedException_whenLogin_thenHttpStatusForbidden() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        BDDMockito.given(userService.login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest)).willThrow(AccountSuspendedException.class);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        verify(userService).login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest);
+        resultActions.andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(AccountSuspendedException.code));
+    }
+
+    @Test
+    void givenLoginRequestAccountDeletedException_whenLogin_thenHttpStatusGone() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        BDDMockito.given(userService.login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest)).willThrow(AccountDeletedException.class);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        verify(userService).login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest);
+        resultActions.andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value(AccountDeletedException.code));
+    }
+
+    @Test
+    void givenLoginRequestConcurrentSessionLimitException_whenLogin_thenHttpStatusConflict() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        BDDMockito.given(userService.login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest)).willThrow(ConcurrentSessionLimitException.class);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        verify(userService).login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest);
+        resultActions.andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(ConcurrentSessionLimitException.code));
+    }
+
+    @Test
+    void givenLoginRequestJwtGenerationException_whenLogin_thenHttpStatusBadRequest() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        BDDMockito.given(userService.login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest)).willThrow(JwtGenerationException.class);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        verify(userService).login(defaultLoginRequest.username(), defaultLoginRequest.password(), revokeOldest);
+        resultActions.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(JwtGenerationException.code));
     }
 
     // ! refresh
@@ -449,11 +742,11 @@ public class AuthControllerTests {
     void givenRefreshTokenInCookie_whenRefresh_thenReturnTokens() throws Exception {
         // given
         final String oldToken = "oldtoken";
-        BDDMockito.given(userService.refresh(oldToken)).willReturn(tokenPair);
+        BDDMockito.given(userService.refresh(oldToken)).willReturn(defaultTokenPair);
         Duration jwtExpiration = Duration.ofMinutes(20);
         BDDMockito.given(jwtProperties.expiration()).willReturn(jwtExpiration);
         Duration jwtRefreshTokenExpiration = Duration.ofDays(60);
-        BDDMockito.given(jwtService.extractExpiration(tokenPair.refreshToken())).willReturn(Date.from(Instant.now().plus(jwtRefreshTokenExpiration)));
+        BDDMockito.given(jwtService.extractExpiration(defaultTokenPair.refreshToken())).willReturn(Date.from(Instant.now().plus(jwtRefreshTokenExpiration)));
 
         // when
         ResultActions resultActions = mockMvc.perform(
@@ -469,8 +762,98 @@ public class AuthControllerTests {
                         containsString("HttpOnly"),
                         containsString("Secure")
                 )))
-                .andExpect(jsonPath("$.access_token", is(tokenPair.accessToken())))
+                .andExpect(jsonPath("$.access_token", is(defaultTokenPair.accessToken())))
                 .andExpect(jsonPath("$.expires_in_ms").value((int) jwtExpiration.toMillis()))
                 .andExpect(jsonPath("$.token_type", is("Bearer")));
+    }
+
+    @Test
+    void givenRefreshTokenInCookieInvalidRefreshTokenException_whenRefresh_thenHttpStatusBadRequest() throws Exception {
+        // given
+        final String oldToken = "oldtoken";
+        BDDMockito.given(userService.refresh(oldToken)).willThrow(InvalidRefreshTokenException.class);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldToken))
+        );
+
+        // then
+        verify(userService).refresh(oldToken);
+        resultActions.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(InvalidRefreshTokenException.code));
+    }
+
+    @Test
+    void givenRefreshTokenInCookieExpiredOrRevokedRefreshTokenException_whenRefresh_thenHttpStatusBadRequest() throws Exception {
+        // given
+        final String oldToken = "oldtoken";
+        BDDMockito.given(userService.refresh(oldToken)).willThrow(ExpiredOrRevokedRefreshTokenException.class);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldToken))
+        );
+
+        // then
+        verify(userService).refresh(oldToken);
+        resultActions.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ExpiredOrRevokedRefreshTokenException.code));
+    }
+
+    @Test
+    void givenRefreshTokenInCookieEmailNotVerifiedException_whenRefresh_thenHttpStatusForbidden() throws Exception {
+        // given
+        final String oldToken = "oldtoken";
+        BDDMockito.given(userService.refresh(oldToken)).willThrow(EmailNotVerifiedException.class);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldToken))
+        );
+
+        // then
+        verify(userService).refresh(oldToken);
+        resultActions.andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(EmailNotVerifiedException.code));
+    }
+
+    @Test
+    void givenRefreshTokenInCookieAccountSuspendedException_whenRefresh_thenHttpStatusForbidden() throws Exception {
+        // given
+        final String oldToken = "oldtoken";
+        BDDMockito.given(userService.refresh(oldToken)).willThrow(AccountSuspendedException.class);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldToken))
+        );
+
+        // then
+        verify(userService).refresh(oldToken);
+        resultActions.andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(AccountSuspendedException.code));
+    }
+
+    @Test
+    void givenRefreshTokenInCookieAccountDeletedException_whenRefresh_thenHttpStatusGone() throws Exception {
+        // given
+        final String oldToken = "oldtoken";
+        BDDMockito.given(userService.refresh(oldToken)).willThrow(AccountDeletedException.class);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldToken))
+        );
+
+        // then
+        verify(userService).refresh(oldToken);
+        resultActions.andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value(AccountDeletedException.code));
     }
 }
