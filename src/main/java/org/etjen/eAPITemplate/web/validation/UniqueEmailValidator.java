@@ -18,7 +18,7 @@ public class UniqueEmailValidator implements ConstraintValidator<UniqueEmail, St
         if (email == null) return false;
 
         // someone requested a token < cooldown ago
-        boolean coolingDown = emailVerificationTokenRepository.existsRecentUnexpired(email, Instant.now().minus(validationProperties.emailVerificationCooldown()));
+        boolean coolingDown = emailVerificationTokenRepository.existsRecentNotUsed(email, Instant.now().minus(validationProperties.emailVerificationCooldown()));
         return !coolingDown;
     }
 }

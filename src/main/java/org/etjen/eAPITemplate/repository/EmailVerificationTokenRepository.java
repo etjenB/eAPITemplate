@@ -11,7 +11,7 @@ import java.util.Optional;
 
 public interface EmailVerificationTokenRepository extends JpaRepository<EmailVerificationToken,Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<EmailVerificationToken> findByToken(String token);
+    Optional<EmailVerificationToken> findAndLockByToken(String token);
     @Query("""
      SELECT count(t) > 0
        FROM EmailVerificationToken t
@@ -19,6 +19,6 @@ public interface EmailVerificationTokenRepository extends JpaRepository<EmailVer
         AND t.used = false
         AND t.issuedAt > :cutoff
     """)
-    boolean existsRecentUnexpired(@Param("email") String email,
-                                  @Param("cutoff") Instant cutoff);
+    boolean existsRecentNotUsed(@Param("email") String email,
+                                @Param("cutoff") Instant cutoff);
 }

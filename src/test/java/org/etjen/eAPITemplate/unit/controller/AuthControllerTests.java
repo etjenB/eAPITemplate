@@ -79,7 +79,7 @@ public class AuthControllerTests {
         // given
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
         BDDMockito.given(compromisedPasswordChecker.check(defaultRegistrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentNotUsed(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
         BDDMockito.given(userRepository.existsByUsernameIgnoreCase(defaultRegistrationRequest.username())).willReturn(false);
 
@@ -101,7 +101,7 @@ public class AuthControllerTests {
         RegistrationRequest registrationRequest = new RegistrationRequest("userb", "userb@gmail.com", "veryverylongpassword"); // ≥15
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
         BDDMockito.given(compromisedPasswordChecker.check(registrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(registrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentNotUsed(eq(registrationRequest.email()), any())).willReturn(false);
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
         BDDMockito.given(userRepository.existsByUsernameIgnoreCase(registrationRequest.username())).willReturn(false);
 
@@ -122,7 +122,7 @@ public class AuthControllerTests {
         // given
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(true); // password compromised
         BDDMockito.given(compromisedPasswordChecker.check(defaultRegistrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentNotUsed(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
         BDDMockito.given(userRepository.existsByUsernameIgnoreCase(defaultRegistrationRequest.username())).willReturn(false);
 
@@ -147,7 +147,7 @@ public class AuthControllerTests {
         RegistrationRequest registrationRequest = new RegistrationRequest("userb", "userb@gmail.com", "Corners%"); // no numbers
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
         BDDMockito.given(compromisedPasswordChecker.check(registrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(registrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentNotUsed(eq(registrationRequest.email()), any())).willReturn(false);
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
         BDDMockito.given(userRepository.existsByUsernameIgnoreCase(registrationRequest.username())).willReturn(false);
 
@@ -172,7 +172,7 @@ public class AuthControllerTests {
         RegistrationRequest registrationRequest = new RegistrationRequest("userb", "userb@gmail.com", "444448829%"); // no letters
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
         BDDMockito.given(compromisedPasswordChecker.check(registrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(registrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentNotUsed(eq(registrationRequest.email()), any())).willReturn(false);
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
         BDDMockito.given(userRepository.existsByUsernameIgnoreCase(registrationRequest.username())).willReturn(false);
 
@@ -197,7 +197,7 @@ public class AuthControllerTests {
         RegistrationRequest registrationRequest = new RegistrationRequest("userb", "userb@gmail.com", "corners8829%"); // no uppercase
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
         BDDMockito.given(compromisedPasswordChecker.check(registrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(registrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentNotUsed(eq(registrationRequest.email()), any())).willReturn(false);
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
         BDDMockito.given(userRepository.existsByUsernameIgnoreCase(registrationRequest.username())).willReturn(false);
 
@@ -222,7 +222,7 @@ public class AuthControllerTests {
         RegistrationRequest registrationRequest = new RegistrationRequest("userb", "userb@gmail.com", "CORNERS8829%"); // no lowercase
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
         BDDMockito.given(compromisedPasswordChecker.check(registrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(registrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentNotUsed(eq(registrationRequest.email()), any())).willReturn(false);
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
         BDDMockito.given(userRepository.existsByUsernameIgnoreCase(registrationRequest.username())).willReturn(false);
 
@@ -246,7 +246,7 @@ public class AuthControllerTests {
         // given
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
         BDDMockito.given(compromisedPasswordChecker.check(defaultRegistrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentNotUsed(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
         BDDMockito.given(userRepository.existsByUsernameIgnoreCase(defaultRegistrationRequest.username())).willReturn(true); // username exists
 
@@ -270,7 +270,7 @@ public class AuthControllerTests {
         // given
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
         BDDMockito.given(compromisedPasswordChecker.check(defaultRegistrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(defaultRegistrationRequest.email()), any())).willReturn(true); // someone requested a token < cooldown ago
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentNotUsed(eq(defaultRegistrationRequest.email()), any())).willReturn(true); // someone requested a token < cooldown ago
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
         BDDMockito.given(userRepository.existsByUsernameIgnoreCase(defaultRegistrationRequest.username())).willReturn(false);
 
@@ -294,7 +294,7 @@ public class AuthControllerTests {
         // given
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
         BDDMockito.given(compromisedPasswordChecker.check(defaultRegistrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentNotUsed(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
         BDDMockito.given(userRepository.existsByUsernameIgnoreCase(defaultRegistrationRequest.username())).willReturn(false);
         BDDMockito.willThrow(AccountSuspendedException.class).given(userService).register(defaultRegistrationRequest);
@@ -317,7 +317,7 @@ public class AuthControllerTests {
         // given
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
         BDDMockito.given(compromisedPasswordChecker.check(defaultRegistrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentNotUsed(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
         BDDMockito.given(userRepository.existsByUsernameIgnoreCase(defaultRegistrationRequest.username())).willReturn(false);
         BDDMockito.willThrow(AccountDeletedException.class).given(userService).register(defaultRegistrationRequest);
@@ -340,7 +340,7 @@ public class AuthControllerTests {
         // given
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
         BDDMockito.given(compromisedPasswordChecker.check(defaultRegistrationRequest.password())).willReturn(compromisedPasswordDecision);
-        BDDMockito.given(emailVerificationTokenRepository.existsRecentUnexpired(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
+        BDDMockito.given(emailVerificationTokenRepository.existsRecentNotUsed(eq(defaultRegistrationRequest.email()), any())).willReturn(false);
         BDDMockito.given(validationProperties.emailVerificationCooldown()).willReturn(Duration.ofMinutes(5));
         BDDMockito.given(userRepository.existsByUsernameIgnoreCase(defaultRegistrationRequest.username())).willReturn(false);
         BDDMockito.willThrow(DuplicateEmailException.class).given(userService).register(defaultRegistrationRequest);

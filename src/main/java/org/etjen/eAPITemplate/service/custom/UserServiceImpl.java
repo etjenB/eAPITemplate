@@ -85,7 +85,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public void verify(String token) throws EmailVerificationTokenNotFoundException, EmailVerificationTokenExpiredException, AccountDeletedException {
-        EmailVerificationToken existingToken = emailVerificationTokenRepository.findByToken(token).orElseThrow(() -> new EmailVerificationTokenNotFoundException(token));
+        EmailVerificationToken existingToken = emailVerificationTokenRepository.findAndLockByToken(token).orElseThrow(() -> new EmailVerificationTokenNotFoundException(token));
 
         if (existingToken.isUsed()) return;
 

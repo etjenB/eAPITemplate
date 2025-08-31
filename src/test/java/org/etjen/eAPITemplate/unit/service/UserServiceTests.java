@@ -294,14 +294,14 @@ public class UserServiceTests {
                 .issuedAt(Instant.now())
                 .user(user)
                 .build();
-        BDDMockito.given(emailVerificationTokenRepository.findByToken(any(String.class))).willReturn(Optional.of(emailVerificationToken));
+        BDDMockito.given(emailVerificationTokenRepository.findAndLockByToken(any(String.class))).willReturn(Optional.of(emailVerificationToken));
 
         // when
         userServiceImpl.verify(emailVerificationToken.getToken());
 
         // then
         User foundUser = emailVerificationToken.getUser();
-        verify(emailVerificationTokenRepository).findByToken(stringTokenCaptor.capture());
+        verify(emailVerificationTokenRepository).findAndLockByToken(stringTokenCaptor.capture());
         assertEquals(emailVerificationToken.getToken(), stringTokenCaptor.getValue());
         assertEquals(AccountStatus.ACTIVE, foundUser.getStatus());
         assertTrue(foundUser.isEmailVerified());
@@ -311,14 +311,14 @@ public class UserServiceTests {
     @Test
     void givenNonExistingToken_whenVerify_thenThrowEmailVerificationTokenNotFoundException() {
         // given
-        BDDMockito.given(emailVerificationTokenRepository.findByToken(any(String.class))).willReturn(Optional.empty());
+        BDDMockito.given(emailVerificationTokenRepository.findAndLockByToken(any(String.class))).willReturn(Optional.empty());
 
         // when
 
         // then
         assertThrowsExactly(EmailVerificationTokenNotFoundException.class, () -> userServiceImpl.verify(DEFAULT_EMAIL_TOKEN));
 
-        verify(emailVerificationTokenRepository, times(1)).findByToken(any());
+        verify(emailVerificationTokenRepository, times(1)).findAndLockByToken(any());
         verifyNoMoreInteractions(emailVerificationTokenRepository);
         verifyNoInteractions(userRepository); // method doesn't save
     }
@@ -342,7 +342,7 @@ public class UserServiceTests {
                 .issuedAt(Instant.now().minus(Duration.ofHours(24)))
                 .user(user)
                 .build();
-        BDDMockito.given(emailVerificationTokenRepository.findByToken(any(String.class))).willReturn(Optional.of(emailVerificationToken));
+        BDDMockito.given(emailVerificationTokenRepository.findAndLockByToken(any(String.class))).willReturn(Optional.of(emailVerificationToken));
 
         AccountStatus statusBefore = user.getStatus();
         boolean verifiedBefore = user.isEmailVerified();
@@ -353,7 +353,7 @@ public class UserServiceTests {
         // then
         assertThrowsExactly(EmailVerificationTokenExpiredException.class, () -> userServiceImpl.verify(emailVerificationToken.getToken()));
 
-        verify(emailVerificationTokenRepository, times(1)).findByToken(emailVerificationToken.getToken());
+        verify(emailVerificationTokenRepository, times(1)).findAndLockByToken(emailVerificationToken.getToken());
         verifyNoMoreInteractions(emailVerificationTokenRepository);
         verifyNoInteractions(userRepository);
 
@@ -381,7 +381,7 @@ public class UserServiceTests {
                 .issuedAt(Instant.now().minus(Duration.ofHours(4)))
                 .user(user)
                 .build();
-        BDDMockito.given(emailVerificationTokenRepository.findByToken(any(String.class))).willReturn(Optional.of(emailVerificationToken));
+        BDDMockito.given(emailVerificationTokenRepository.findAndLockByToken(any(String.class))).willReturn(Optional.of(emailVerificationToken));
 
         AccountStatus statusBefore = user.getStatus();
         boolean verifiedBefore = user.isEmailVerified();
@@ -392,7 +392,7 @@ public class UserServiceTests {
         // then
         assertThrowsExactly(AccountDeletedException.class, () -> userServiceImpl.verify(emailVerificationToken.getToken()));
 
-        verify(emailVerificationTokenRepository, times(1)).findByToken(emailVerificationToken.getToken());
+        verify(emailVerificationTokenRepository, times(1)).findAndLockByToken(emailVerificationToken.getToken());
         verifyNoMoreInteractions(emailVerificationTokenRepository);
         verifyNoInteractions(userRepository);
 
@@ -420,7 +420,7 @@ public class UserServiceTests {
                 .issuedAt(Instant.now().minus(Duration.ofHours(24)))
                 .user(user)
                 .build();
-        BDDMockito.given(emailVerificationTokenRepository.findByToken(any(String.class))).willReturn(Optional.of(emailVerificationToken));
+        BDDMockito.given(emailVerificationTokenRepository.findAndLockByToken(any(String.class))).willReturn(Optional.of(emailVerificationToken));
 
         AccountStatus statusBefore = user.getStatus();
         boolean verifiedBefore = user.isEmailVerified();
@@ -430,7 +430,7 @@ public class UserServiceTests {
         userServiceImpl.verify(emailVerificationToken.getToken());
 
         // then
-        verify(emailVerificationTokenRepository, times(1)).findByToken(emailVerificationToken.getToken());
+        verify(emailVerificationTokenRepository, times(1)).findAndLockByToken(emailVerificationToken.getToken());
         verifyNoMoreInteractions(emailVerificationTokenRepository);
         verifyNoInteractions(userRepository);
 
