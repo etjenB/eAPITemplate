@@ -5,7 +5,6 @@ import org.etjen.eAPITemplate.domain.model.User;
 import org.etjen.eAPITemplate.domain.model.enums.AccountStatus;
 import org.etjen.eAPITemplate.integration.AbstractContainerBase;
 import org.etjen.eAPITemplate.repository.UserRepository;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,12 +38,6 @@ public class UserRepositoryIT extends AbstractContainerBase {
                 .status(AccountStatus.PENDING_VERIFICATION)
                 .build();
         userRepository.saveAndFlush(defaultUser);
-        entityManager.clear();
-    }
-
-    @AfterEach
-    void tearDown() {
-        jdbc.execute("TRUNCATE TABLE users RESTART IDENTITY CASCADE");
         entityManager.clear();
     }
 
