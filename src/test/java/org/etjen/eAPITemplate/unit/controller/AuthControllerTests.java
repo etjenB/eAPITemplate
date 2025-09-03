@@ -98,7 +98,7 @@ public class AuthControllerTests {
     @Test
     void givenValidRegistrationRequestPasswordLong_whenRegister_thenReturnHttpStatusCreated() throws Exception {
         // given
-        RegistrationRequest registrationRequest = new RegistrationRequest("userb", "userb@gmail.com", "veryverylongpassword"); // ≥15
+        RegistrationRequest registrationRequest = new RegistrationRequest("userb", "userb@gmail.com", "wadaddasfsdbdferrsfweasfdetweds"); // ≥15
         CompromisedPasswordDecision compromisedPasswordDecision = new CompromisedPasswordDecision(false);
         BDDMockito.given(compromisedPasswordChecker.check(registrationRequest.password())).willReturn(compromisedPasswordDecision);
         BDDMockito.given(emailVerificationTokenRepository.existsRecentNotUsed(eq(registrationRequest.email()), any())).willReturn(false);

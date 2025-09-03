@@ -3,6 +3,7 @@ package org.etjen.eAPITemplate.integration.repository;
 import jakarta.persistence.EntityManager;
 import org.etjen.eAPITemplate.domain.model.EmailOutbox;
 import org.etjen.eAPITemplate.domain.model.enums.MailStatus;
+import org.etjen.eAPITemplate.integration.AbstractContainerBase;
 import org.etjen.eAPITemplate.repository.EmailOutboxRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-public class EmailOutboxRepositoryIT {
+public class EmailOutboxRepositoryIT extends AbstractContainerBase {
     @Autowired
     JdbcTemplate jdbc;
     @Autowired

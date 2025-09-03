@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager;
 import org.etjen.eAPITemplate.domain.model.EmailVerificationToken;
 import org.etjen.eAPITemplate.domain.model.User;
 import org.etjen.eAPITemplate.domain.model.enums.AccountStatus;
+import org.etjen.eAPITemplate.integration.AbstractContainerBase;
 import org.etjen.eAPITemplate.repository.EmailVerificationTokenRepository;
 import org.etjen.eAPITemplate.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-public class EmailVerificationTokenRepositoryIT {
+public class EmailVerificationTokenRepositoryIT extends AbstractContainerBase {
     @Autowired
     JdbcTemplate jdbc;
     @Autowired
