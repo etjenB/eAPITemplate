@@ -385,58 +385,13 @@ public class AuthControllerTests {
         );
 
         // then
-        resultActions.andExpect(status().isNotFound());
-        verify(userService).verify(defaultVerifyToken);
-    }
-
-    @Test
-    void givenExpiredToken_whenVerify_thenReturnHttpStatusBadRequest() throws Exception {
-        // given
-        BDDMockito.willThrow(EmailVerificationTokenExpiredException.class).given(userService).verify(defaultVerifyToken);
-
-        // when
-        ResultActions resultActions = mockMvc.perform(
-                get("/auth/verify").param("token", defaultVerifyToken)
-        );
-
-        // then
-        resultActions.andExpect(status().isBadRequest());
-        verify(userService).verify(defaultVerifyToken);
-    }
-
-    @Test
-    void givenInvalidTokenAccountDeleted_whenVerify_thenReturnHttpStatusGone() throws Exception {
-        // given
-        BDDMockito.willThrow(AccountDeletedException.class).given(userService).verify(defaultVerifyToken);
-
-        // when
-        ResultActions resultActions = mockMvc.perform(
-                get("/auth/verify").param("token", defaultVerifyToken)
-        );
-
-        // then
-        resultActions.andExpect(status().isGone());
-        verify(userService).verify(defaultVerifyToken);
-    }
-
-    @Test
-    void givenTokenEmailVerificationTokenNotFoundException_whenVerify_thenReturnHttpStatusNotFound() throws Exception {
-        // given
-        BDDMockito.willThrow(EmailVerificationTokenNotFoundException.class).given(userService).verify(defaultVerifyToken);
-
-        // when
-        ResultActions resultActions = mockMvc.perform(
-                get("/auth/verify").param("token", defaultVerifyToken)
-        );
-
-        // then
         verify(userService, only()).verify(defaultVerifyToken);
         resultActions.andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(EmailVerificationTokenNotFoundException.code));
     }
 
     @Test
-    void givenTokenEmailVerificationTokenExpiredException_whenVerify_thenReturnHttpStatusBadRequest() throws Exception {
+    void givenExpiredToken_whenVerify_thenReturnHttpStatusBadRequest() throws Exception {
         // given
         BDDMockito.willThrow(EmailVerificationTokenExpiredException.class).given(userService).verify(defaultVerifyToken);
 
