@@ -719,13 +719,13 @@ public class AuthControllerIT extends AbstractContainerBase {
     void givenLoginRequestCustomUnauthorizedException_whenLogin_thenHttpStatusBadRequest() throws Exception {
         // given
         Boolean revokeOldest = true;
-        Integer failedLoginAttemps = 0;
+        int failedLoginAttempts = 0;
         User user = User.builder()
                 .username(DEFAULT_USERNAME)
                 .email(DEFAULT_EMAIL)
                 .password(DEFAULT_PASSWORD_ENCODED)
                 .status(AccountStatus.ACTIVE)
-                .failedLoginAttempts(failedLoginAttemps)
+                .failedLoginAttempts(failedLoginAttempts)
                 .build();
         userRepository.saveAndFlush(user);
         entityManager.clear();
@@ -747,7 +747,7 @@ public class AuthControllerIT extends AbstractContainerBase {
         assertEquals(0, listOfRefreshTokensAfterLogin.get().size());
         Optional<User> foundUser = userRepository.findById(user.getId());
         assertTrue(foundUser.isPresent());
-        assertEquals(failedLoginAttemps + 1, foundUser.get().getFailedLoginAttempts());
+        assertEquals(failedLoginAttempts + 1, foundUser.get().getFailedLoginAttempts());
         assertTrue(foundUser.get().isAccountNonLocked());
         assertNull(foundUser.get().getLockedUntil());
     }
