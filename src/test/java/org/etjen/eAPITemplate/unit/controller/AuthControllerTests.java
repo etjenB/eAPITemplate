@@ -741,24 +741,6 @@ public class AuthControllerTests {
     }
 
     @Test
-    void givenRefreshTokenInCookieExpiredOrRevokedRefreshTokenException_whenRefresh_thenHttpStatusBadRequest() throws Exception {
-        // given
-        final String oldToken = "oldtoken";
-        BDDMockito.given(userService.refresh(oldToken)).willThrow(ExpiredOrRevokedRefreshTokenException.class);
-
-        // when
-        ResultActions resultActions = mockMvc.perform(
-                post("/auth/refresh")
-                        .cookie(new Cookie("refresh_token", oldToken))
-        );
-
-        // then
-        verify(userService).refresh(oldToken);
-        resultActions.andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(ExpiredOrRevokedRefreshTokenException.code));
-    }
-
-    @Test
     void givenRefreshTokenInCookieEmailNotVerifiedException_whenRefresh_thenHttpStatusForbidden() throws Exception {
         // given
         final String oldToken = "oldtoken";
@@ -810,5 +792,23 @@ public class AuthControllerTests {
         verify(userService).refresh(oldToken);
         resultActions.andExpect(status().isGone())
                 .andExpect(jsonPath("$.code").value(AccountDeletedException.code));
+    }
+
+    @Test
+    void givenRefreshTokenInCookieExpiredOrRevokedRefreshTokenException_whenRefresh_thenHttpStatusBadRequest() throws Exception {
+        // given
+        final String oldToken = "oldtoken";
+        BDDMockito.given(userService.refresh(oldToken)).willThrow(ExpiredOrRevokedRefreshTokenException.class);
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldToken))
+        );
+
+        // then
+        verify(userService).refresh(oldToken);
+        resultActions.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ExpiredOrRevokedRefreshTokenException.code));
     }
 }

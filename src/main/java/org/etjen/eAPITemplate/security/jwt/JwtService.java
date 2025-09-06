@@ -2,7 +2,6 @@ package org.etjen.eAPITemplate.security.jwt;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
@@ -11,7 +10,7 @@ import org.etjen.eAPITemplate.config.properties.security.JwtProperties;
 import org.etjen.eAPITemplate.exception.auth.jwt.JwtGenerationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
-import java.security.Key;
+import javax.crypto.SecretKey;
 import java.util.*;
 import java.util.function.Function;
 
@@ -19,14 +18,14 @@ import java.util.function.Function;
 @RequiredArgsConstructor
 public class JwtService {
     private final JwtProperties jwtProperties;
-    private Key signingKey;
+    private SecretKey signingKey;
 
     @PostConstruct
     private void init() {                  // build the key once
         signingKey = buildKey(jwtProperties.secret());
     }
 
-    private Key buildKey(String secret) {
+    private SecretKey buildKey(String secret) {
         byte[] keyBytes = Decoders.BASE64.decode(secret);
         return Keys.hmacShaKeyFor(keyBytes);
     }
@@ -36,12 +35,12 @@ public class JwtService {
             Map<String, Object> claims = new HashMap<>();
             claims.put("roles", roles);
             return Jwts.builder()
-                    .setClaims(claims)
-                    .setSubject(username)
-                    .setId(jti)
-                    .setIssuedAt(new Date(System.currentTimeMillis()))
-                    .setExpiration(new Date(System.currentTimeMillis() + jwtProperties.expiration().toMillis()))
-                    .signWith(signingKey, SignatureAlgorithm.HS512)
+                    .claims(claims)
+                    .subject(username)
+                    .id(jti)
+                    .issuedAt(new Date(System.currentTimeMillis()))
+                    .expiration(new Date(System.currentTimeMillis() + jwtProperties.refreshExpiration().toMillis()))
+                    .signWith(signingKey)
                     .compact();
         } catch (Exception ex) {
             throw new JwtGenerationException(ex.getMessage());
@@ -51,17 +50,16 @@ public class JwtService {
     public String generateRefreshToken(String username, String jti) throws JwtGenerationException {
         try {
             return Jwts.builder()
-                    .setSubject(username)
-                    .setId(jti)
-                    .setIssuedAt(new Date(System.currentTimeMillis()))
-                    .setExpiration(new Date(System.currentTimeMillis() + jwtProperties.refreshExpiration().toMillis()))
-                    .signWith(signingKey, SignatureAlgorithm.HS512)
+                    .subject(username)
+                    .id(jti)
+                    .issuedAt(new Date(System.currentTimeMillis()))
+                    .expiration(new Date(System.currentTimeMillis() + jwtProperties.refreshExpiration().toMillis()))
+                    .signWith(signingKey)
                     .compact();
         } catch (Exception ex) {
             throw new JwtGenerationException(ex.getMessage());
         }
     }
-
 
     public String extractUserName(String token) {
         // extract the username from jwt token
@@ -75,10 +73,10 @@ public class JwtService {
 
     public Claims extractAllClaims(String token) {
         return Jwts.parser()
-                .setSigningKey(signingKey)
+                .verifyWith(signingKey)
                 .build()
-                .parseClaimsJws(token) // may throw ExpiredJwtException
-                .getBody();
+                .parseSignedClaims(token) // may throw ExpiredJwtException
+                .getPayload();
     }
 
     public boolean validateToken(String token, UserDetails userDetails) {

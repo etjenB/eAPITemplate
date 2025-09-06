@@ -1,19 +1,25 @@
 package org.etjen.eAPITemplate.integration.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.Claims;
 import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.Cookie;
+import org.etjen.eAPITemplate.config.properties.security.AccountProperties;
 import org.etjen.eAPITemplate.domain.model.EmailVerificationToken;
 import org.etjen.eAPITemplate.domain.model.RefreshToken;
 import org.etjen.eAPITemplate.domain.model.User;
 import org.etjen.eAPITemplate.domain.model.enums.AccountStatus;
 import org.etjen.eAPITemplate.exception.auth.*;
+import org.etjen.eAPITemplate.exception.auth.jwt.ExpiredOrRevokedRefreshTokenException;
 import org.etjen.eAPITemplate.exception.auth.jwt.InvalidRefreshTokenException;
+import org.etjen.eAPITemplate.exception.auth.jwt.JwtGenerationException;
 import org.etjen.eAPITemplate.exception.auth.jwt.RefreshTokenNotFoundException;
 import org.etjen.eAPITemplate.integration.AbstractContainerBase;
 import org.etjen.eAPITemplate.repository.EmailVerificationTokenRepository;
 import org.etjen.eAPITemplate.repository.RefreshTokenRepository;
 import org.etjen.eAPITemplate.repository.UserRepository;
+import org.etjen.eAPITemplate.security.jwt.JwtService;
+import org.etjen.eAPITemplate.web.payload.auth.LoginRequest;
 import org.etjen.eAPITemplate.web.payload.auth.RegistrationRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,16 +30,22 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -56,13 +68,19 @@ public class AuthControllerIT extends AbstractContainerBase {
     private EmailVerificationTokenRepository emailVerificationTokenRepository;
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
+    @Autowired
+    private AccountProperties accountProperties;
+    @MockitoSpyBean
+    JwtService jwtService;
     private final String DEFAULT_USERNAME = "userb";
     private final String DEFAULT_PASSWORD = "Corners8829%";
+    private final String DEFAULT_PASSWORD_ENCODED = "{bcrypt}$2a$10$mAuDLFCHlz5wycTtMhUnPOFeg2VwFvgH6dDjLkwlY9TNSsnOfv8Qy";
     private final String DEFAULT_EMAIL = "userb@gmail.com";
     private final String DEFAULT_EMAIL_TOKEN = UUID.randomUUID().toString();
     private final String DEFAULT_RT_JTI = "85e5170f-b7ab-47b7-b57a-f33a34eb1175";
     private final String DEFAULT_REFRESH_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJ1c2VyYiIsImp0aSI6Ijg1ZTUxNzBmLWI3YWItNDdiNy1iNTdhLWYzM2EzNGViMTE3NSIsImlhdCI6MTc1NDQ4MjcyMywiZXhwIjoxNzU5NjY2NzIzfQ.IBZTGjR2nCwr7K36hOoYeoQGhh90wENRSmLmvkWKTK58Dtmt3ghqpEZBGrpbKvPJctZlVe9y0RKt-HT5PQ-mXg";
     private final RegistrationRequest defaultRegistrationRequest = new RegistrationRequest(DEFAULT_USERNAME, "userb@gmail.com", DEFAULT_PASSWORD);
+    private final LoginRequest defaultLoginRequest = new LoginRequest(DEFAULT_USERNAME, DEFAULT_PASSWORD);
 
     @BeforeEach
     void setUp() {
@@ -586,5 +604,638 @@ public class AuthControllerIT extends AbstractContainerBase {
         // then
         resultActions.andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(RefreshTokenNotFoundException.code));
+    }
+
+    // ! login
+
+    @Test
+    void givenValidLoginRequest_whenLogin_thenUnlockAccountAndReturnTokens() throws Exception {
+        // given
+        Boolean revokeOldest = false;
+        User user = User.builder()
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD_ENCODED)
+                .status(AccountStatus.ACTIVE)
+                .failedLoginAttempts(25)
+                .accountNonLocked(false)
+                .lockedUntil(Instant.now().minus(Duration.ofMinutes(10)))
+                .build();
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        resultActions.andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
+                        containsString("refresh_token="),
+                        containsString("HttpOnly"),
+                        containsString("Secure")
+                )))
+                .andExpect(jsonPath("$.access_token").exists())
+                .andExpect(jsonPath("$.expires_in_ms").exists())
+                .andExpect(jsonPath("$.token_type", is("Bearer")));
+        Optional<List<RefreshToken>> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertTrue(listOfRefreshTokensAfterLogin.isPresent());
+        assertEquals(1, listOfRefreshTokensAfterLogin.get().size());
+        RefreshToken foundRefreshToken = listOfRefreshTokensAfterLogin.get().getFirst();
+        assertFalse(foundRefreshToken.isRevoked());
+        assertTrue(foundRefreshToken.getExpiresAt().isAfter(Instant.now()));
+        Optional<User> foundUser = userRepository.findById(user.getId());
+        assertTrue(foundUser.isPresent());
+        assertEquals(0, foundUser.get().getFailedLoginAttempts());
+        assertTrue(foundUser.get().isAccountNonLocked());
+        assertNull(foundUser.get().getLockedUntil());
+    }
+
+    @Test
+    void givenValidLoginRequestConcurrentSessionLimitExceededRevokeOldestTrue_whenLogin_thenRevokeOldestAndReturnTokens() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        User user = User.builder()
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD_ENCODED)
+                .status(AccountStatus.ACTIVE)
+                .build();
+        userRepository.saveAndFlush(user);
+        for (int i = 0; i < accountProperties.concurrentSessionsLimit() + 1; i++) {
+            RefreshToken refreshToken = RefreshToken.builder()
+                    .tokenId(UUID.randomUUID().toString())
+                    .expiresAt(Instant.now().plus(Duration.ofDays(5).plus(Duration.ofHours(i))))
+                    .revoked(false)
+                    .issuedAt(Instant.now().minus(Duration.ofDays(55).plus(Duration.ofHours(i))))
+                    .ipAddress("0:0:0:0:0:0:0:1")
+                    .userAgent("PostmanRuntime/7.44.1")
+                    .user(user)
+                    .build();
+            refreshTokenRepository.save(refreshToken);
+        }
+        refreshTokenRepository.flush();
+        entityManager.clear();
+        Optional<RefreshToken> oldestBeforeLogin = refreshTokenRepository
+                .findFirstByUserIdAndRevokedFalseOrderByIssuedAtAsc(user.getId());
+        Optional<List<RefreshToken>> listBeforeLogin = refreshTokenRepository.findByUserId(user.getId());
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        resultActions.andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
+                        containsString("refresh_token="),
+                        containsString("HttpOnly"),
+                        containsString("Secure")
+                )))
+                .andExpect(jsonPath("$.access_token").exists())
+                .andExpect(jsonPath("$.expires_in_ms").exists())
+                .andExpect(jsonPath("$.token_type", is("Bearer")));
+        Optional<List<RefreshToken>> listAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertTrue(listBeforeLogin.isPresent());
+        assertTrue(listAfterLogin.isPresent());
+        List<RefreshToken> listOfActiveRefreshTokensBeforeLogin = listBeforeLogin.get().stream().filter(rt -> !rt.isRevoked()).toList();
+        List<RefreshToken> listOfActiveRefreshTokensAfterLogin = listAfterLogin.get().stream().filter(rt -> !rt.isRevoked()).toList();
+        assertEquals(listOfActiveRefreshTokensBeforeLogin.size(), listOfActiveRefreshTokensAfterLogin.size());
+        Optional<RefreshToken> oldestAfterLogin = refreshTokenRepository
+                .findFirstByUserIdAndRevokedFalseOrderByIssuedAtAsc(user.getId());
+        assertTrue(oldestBeforeLogin.isPresent());
+        assertTrue(oldestAfterLogin.isPresent());
+        assertTrue(oldestBeforeLogin.get().getIssuedAt().isBefore(oldestAfterLogin.get().getIssuedAt()));
+    }
+
+    @Test
+    void givenLoginRequestCustomUnauthorizedException_whenLogin_thenHttpStatusBadRequest() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        Integer failedLoginAttemps = 0;
+        User user = User.builder()
+                .username(DEFAULT_USERNAME)
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD_ENCODED)
+                .status(AccountStatus.ACTIVE)
+                .failedLoginAttempts(failedLoginAttemps)
+                .build();
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+        LoginRequest failedLoginRequest = new LoginRequest(user.getUsername(), "incorrect");
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(failedLoginRequest))
+        );
+
+        // then
+        resultActions.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(CustomUnauthorizedException.code));
+        Optional<List<RefreshToken>> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertTrue(listOfRefreshTokensAfterLogin.isPresent());
+        assertEquals(0, listOfRefreshTokensAfterLogin.get().size());
+        Optional<User> foundUser = userRepository.findById(user.getId());
+        assertTrue(foundUser.isPresent());
+        assertEquals(failedLoginAttemps + 1, foundUser.get().getFailedLoginAttempts());
+        assertTrue(foundUser.get().isAccountNonLocked());
+        assertNull(foundUser.get().getLockedUntil());
+    }
+
+    @Test
+    void givenLoginRequestAccountLockedException_whenLogin_thenHttpStatusLocked() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        Integer failedLoginAttemps = 25;
+        User user = User.builder()
+                .username(defaultLoginRequest.username())
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD_ENCODED)
+                .status(AccountStatus.ACTIVE)
+                .failedLoginAttempts(failedLoginAttemps)
+                .accountNonLocked(false)
+                .lockedUntil(Instant.now().plus(Duration.ofMinutes(10)))        // locked
+                .build();
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        resultActions.andExpect(status().isLocked())
+                .andExpect(jsonPath("$.code").value(AccountLockedException.code));
+        Optional<List<RefreshToken>> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertTrue(listOfRefreshTokensAfterLogin.isPresent());
+        assertEquals(0, listOfRefreshTokensAfterLogin.get().size());
+        Optional<User> foundUser = userRepository.findById(user.getId());
+        assertTrue(foundUser.isPresent());
+        assertEquals(failedLoginAttemps, foundUser.get().getFailedLoginAttempts());
+        assertFalse(foundUser.get().isAccountNonLocked());
+        assertNotNull(foundUser.get().getLockedUntil());
+    }
+
+    @Test
+    void givenLoginRequestEmailNotVerifiedException_whenLogin_thenHttpStatusForbidden() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        User user = User.builder()
+                .username(defaultLoginRequest.username())
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD_ENCODED)
+                .status(AccountStatus.PENDING_VERIFICATION)
+                .build();
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        resultActions.andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(EmailNotVerifiedException.code));
+        Optional<List<RefreshToken>> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertTrue(listOfRefreshTokensAfterLogin.isPresent());
+        assertEquals(0, listOfRefreshTokensAfterLogin.get().size());
+        Optional<User> foundUser = userRepository.findById(user.getId());
+        assertTrue(foundUser.isPresent());
+        assertEquals(0, foundUser.get().getFailedLoginAttempts());
+        assertTrue(foundUser.get().isAccountNonLocked());
+        assertNull(foundUser.get().getLockedUntil());
+    }
+
+    @Test
+    void givenLoginRequestAccountSuspendedException_whenLogin_thenHttpStatusForbidden() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        User user = User.builder()
+                .username(defaultLoginRequest.username())
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD_ENCODED)
+                .status(AccountStatus.SUSPENDED)
+                .build();
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        resultActions.andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(AccountSuspendedException.code));
+        Optional<List<RefreshToken>> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertTrue(listOfRefreshTokensAfterLogin.isPresent());
+        assertEquals(0, listOfRefreshTokensAfterLogin.get().size());
+        Optional<User> foundUser = userRepository.findById(user.getId());
+        assertTrue(foundUser.isPresent());
+        assertEquals(0, foundUser.get().getFailedLoginAttempts());
+        assertTrue(foundUser.get().isAccountNonLocked());
+        assertNull(foundUser.get().getLockedUntil());
+    }
+
+    @Test
+    void givenLoginRequestAccountDeletedException_whenLogin_thenHttpStatusGone() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        User user = User.builder()
+                .username(defaultLoginRequest.username())
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD_ENCODED)
+                .status(AccountStatus.DELETED)
+                .build();
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        resultActions.andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value(AccountDeletedException.code));
+        Optional<List<RefreshToken>> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertTrue(listOfRefreshTokensAfterLogin.isPresent());
+        assertEquals(0, listOfRefreshTokensAfterLogin.get().size());
+        Optional<User> foundUser = userRepository.findById(user.getId());
+        assertTrue(foundUser.isPresent());
+        assertEquals(0, foundUser.get().getFailedLoginAttempts());
+        assertTrue(foundUser.get().isAccountNonLocked());
+        assertNull(foundUser.get().getLockedUntil());
+    }
+
+    @Test
+    void givenLoginRequestConcurrentSessionLimitException_whenLogin_thenHttpStatusConflict() throws Exception {
+        // given
+        Boolean revokeOldest = false;
+        User user = User.builder()
+                .username(defaultLoginRequest.username())
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD_ENCODED)
+                .status(AccountStatus.ACTIVE)
+                .build();
+        userRepository.saveAndFlush(user);
+        for (int i = 0; i < accountProperties.concurrentSessionsLimit() + 1; i++) {
+            RefreshToken refreshToken = RefreshToken.builder()
+                    .tokenId(UUID.randomUUID().toString())
+                    .expiresAt(Instant.now().plus(Duration.ofDays(5).plus(Duration.ofHours(i))))
+                    .revoked(false)
+                    .issuedAt(Instant.now().minus(Duration.ofDays(55).plus(Duration.ofHours(i))))
+                    .ipAddress("0:0:0:0:0:0:0:1")
+                    .userAgent("PostmanRuntime/7.44.1")
+                    .user(user)
+                    .build();
+            refreshTokenRepository.save(refreshToken);
+        }
+        refreshTokenRepository.flush();
+        entityManager.clear();
+        Optional<RefreshToken> oldestBeforeLogin = refreshTokenRepository
+                .findFirstByUserIdAndRevokedFalseOrderByIssuedAtAsc(user.getId());
+        Optional<List<RefreshToken>> listBeforeLogin = refreshTokenRepository.findByUserId(user.getId());
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        resultActions.andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(ConcurrentSessionLimitException.code));
+        Optional<List<RefreshToken>> listAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertTrue(listBeforeLogin.isPresent());
+        assertTrue(listAfterLogin.isPresent());
+        assertEquals(listBeforeLogin.get().size(), listAfterLogin.get().size());
+        List<RefreshToken> listOfActiveRefreshTokensBeforeLogin = listBeforeLogin.get().stream().filter(rt -> !rt.isRevoked()).toList();
+        List<RefreshToken> listOfActiveRefreshTokensAfterLogin = listAfterLogin.get().stream().filter(rt -> !rt.isRevoked()).toList();
+        assertEquals(listOfActiveRefreshTokensBeforeLogin.size(), listOfActiveRefreshTokensAfterLogin.size());
+        Optional<RefreshToken> oldestAfterLogin = refreshTokenRepository
+                .findFirstByUserIdAndRevokedFalseOrderByIssuedAtAsc(user.getId());
+        assertTrue(oldestBeforeLogin.isPresent());
+        assertTrue(oldestAfterLogin.isPresent());
+        assertEquals(oldestBeforeLogin.get().getIssuedAt(), oldestAfterLogin.get().getIssuedAt());
+    }
+
+    @Test
+    void givenLoginRequestJwtGenerationException_whenLogin_thenHttpStatusBadRequest() throws Exception {
+        // given
+        Boolean revokeOldest = true;
+        User user = User.builder()
+                .username(defaultLoginRequest.username())
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD_ENCODED)
+                .status(AccountStatus.ACTIVE)
+                .build();
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+        willThrow(new JwtGenerationException("boom"))
+                .given(jwtService).generateAccessToken(anyString(), anyList(), anyString());
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/login")
+                        .param("revokeOldest", String.valueOf(revokeOldest))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(defaultLoginRequest))
+        );
+
+        // then
+        resultActions.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(JwtGenerationException.code));
+        Optional<List<RefreshToken>> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertTrue(listOfRefreshTokensAfterLogin.isPresent());
+        assertEquals(0, listOfRefreshTokensAfterLogin.get().size());
+        Optional<User> foundUser = userRepository.findById(user.getId());
+        assertTrue(foundUser.isPresent());
+        assertEquals(0, foundUser.get().getFailedLoginAttempts());
+        assertTrue(foundUser.get().isAccountNonLocked());
+        assertNull(foundUser.get().getLockedUntil());
+    }
+
+    // ! refresh
+
+    @Test
+    void givenRefreshTokenInCookie_whenRefresh_thenReturnTokens() throws Exception {
+        // given
+        User user = User.builder()
+                .username(defaultLoginRequest.username())
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD_ENCODED)
+                .status(AccountStatus.ACTIVE)
+                .build();
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+        MvcResult loginResult = mockMvc.perform(
+                        post("/auth/login")
+                                .param("revokeOldest", "true")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(defaultLoginRequest))
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+        Cookie loginCookie = loginResult.getResponse().getCookie("refresh_token");
+        assertNotNull(loginCookie, "Login must set refresh_token cookie");
+        String oldRefreshToken = loginCookie.getValue();
+        assertNotNull(oldRefreshToken);
+        assertFalse(oldRefreshToken.isBlank());
+        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldRefreshToken))
+        );
+
+        // then
+        resultActions.andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
+                        containsString("refresh_token="),
+                        containsString("HttpOnly"),
+                        containsString("Secure")
+                )))
+                .andExpect(jsonPath("$.access_token").exists())
+                .andExpect(jsonPath("$.expires_in_ms").exists())
+                .andExpect(jsonPath("$.token_type", is("Bearer")));
+        Cookie refreshedCookie = resultActions.andReturn().getResponse().getCookie("refresh_token");
+        assertNotNull(refreshedCookie, "Refresh must set a new refresh_token cookie");
+        String newRefreshToken = refreshedCookie.getValue();
+        assertNotNull(newRefreshToken);
+        assertFalse(newRefreshToken.isBlank());
+        assertNotEquals(oldRefreshToken, newRefreshToken, "Refresh should rotate the token");
+        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        assertEquals(numberOfRefreshTokensBeforeRefresh + 1, numberOfRefreshTokensAfterRefresh);
+    }
+
+    @Test
+    void givenInvalidRefreshTokenInCookieInvalidRefreshTokenException_whenRefresh_thenHttpStatusBadRequest() throws Exception {
+        // given
+        final String oldToken = "oldtoken";
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldToken))
+        );
+
+        // then
+        resultActions.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(InvalidRefreshTokenException.code));
+    }
+
+    @Test
+    void givenNonExistingRefreshTokenInCookieInvalidRefreshTokenException_whenRefresh_thenHttpStatusBadRequest() throws Exception {
+        // given
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", DEFAULT_REFRESH_TOKEN))
+        );
+
+        // then
+        resultActions.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(InvalidRefreshTokenException.code));
+    }
+
+    @Test
+    void givenRefreshTokenInCookieEmailNotVerifiedException_whenRefresh_thenHttpStatusForbidden() throws Exception {
+        // given
+        User user = User.builder()
+                .username(defaultLoginRequest.username())
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD_ENCODED)
+                .status(AccountStatus.ACTIVE)
+                .build();
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+        MvcResult loginResult = mockMvc.perform(
+                        post("/auth/login")
+                                .param("revokeOldest", "true")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(defaultLoginRequest))
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+        Cookie loginCookie = loginResult.getResponse().getCookie("refresh_token");
+        assertNotNull(loginCookie, "Login must set refresh_token cookie");
+        String oldRefreshToken = loginCookie.getValue();
+        assertNotNull(oldRefreshToken);
+        assertFalse(oldRefreshToken.isBlank());
+        user.setStatus(AccountStatus.PENDING_VERIFICATION);
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldRefreshToken))
+        );
+
+        // then
+        resultActions.andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(EmailNotVerifiedException.code));
+        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        assertEquals(numberOfRefreshTokensBeforeRefresh, numberOfRefreshTokensAfterRefresh);
+    }
+
+    @Test
+    void givenRefreshTokenInCookieAccountSuspendedException_whenRefresh_thenHttpStatusForbidden() throws Exception {
+        // given
+        User user = User.builder()
+                .username(defaultLoginRequest.username())
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD_ENCODED)
+                .status(AccountStatus.ACTIVE)
+                .build();
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+        MvcResult loginResult = mockMvc.perform(
+                        post("/auth/login")
+                                .param("revokeOldest", "true")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(defaultLoginRequest))
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+        Cookie loginCookie = loginResult.getResponse().getCookie("refresh_token");
+        assertNotNull(loginCookie, "Login must set refresh_token cookie");
+        String oldRefreshToken = loginCookie.getValue();
+        assertNotNull(oldRefreshToken);
+        assertFalse(oldRefreshToken.isBlank());
+        user.setStatus(AccountStatus.SUSPENDED);
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldRefreshToken))
+        );
+
+        // then
+        resultActions.andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(AccountSuspendedException.code));
+        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        assertEquals(numberOfRefreshTokensBeforeRefresh, numberOfRefreshTokensAfterRefresh);
+    }
+
+    @Test
+    void givenRefreshTokenInCookieAccountDeletedException_whenRefresh_thenHttpStatusGone() throws Exception {
+        // given
+        User user = User.builder()
+                .username(defaultLoginRequest.username())
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD_ENCODED)
+                .status(AccountStatus.ACTIVE)
+                .build();
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+        MvcResult loginResult = mockMvc.perform(
+                        post("/auth/login")
+                                .param("revokeOldest", "true")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(defaultLoginRequest))
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+        Cookie loginCookie = loginResult.getResponse().getCookie("refresh_token");
+        assertNotNull(loginCookie, "Login must set refresh_token cookie");
+        String oldRefreshToken = loginCookie.getValue();
+        assertNotNull(oldRefreshToken);
+        assertFalse(oldRefreshToken.isBlank());
+        user.setStatus(AccountStatus.DELETED);
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldRefreshToken))
+        );
+
+        // then
+        resultActions.andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value(AccountDeletedException.code));
+        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        assertEquals(numberOfRefreshTokensBeforeRefresh, numberOfRefreshTokensAfterRefresh);
+    }
+
+    @Test
+    void givenRefreshTokenInCookieExpiredOrRevokedRefreshTokenException_whenRefresh_thenHttpStatusBadRequest() throws Exception {
+        // given
+        User user = User.builder()
+                .username(defaultLoginRequest.username())
+                .email(DEFAULT_EMAIL)
+                .password(DEFAULT_PASSWORD_ENCODED)
+                .status(AccountStatus.ACTIVE)
+                .build();
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+        MvcResult loginResult = mockMvc.perform(
+                        post("/auth/login")
+                                .param("revokeOldest", "true")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(defaultLoginRequest))
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+        Cookie loginCookie = loginResult.getResponse().getCookie("refresh_token");
+        assertNotNull(loginCookie, "Login must set refresh_token cookie");
+        String oldRefreshToken = loginCookie.getValue();
+        assertNotNull(oldRefreshToken);
+        assertFalse(oldRefreshToken.isBlank());
+        String jti = jwtService.extractClaim(oldRefreshToken, Claims::getId);
+        Optional<RefreshToken> foundRefreshToken = refreshTokenRepository.findByTokenId(jti);
+        assertTrue(foundRefreshToken.isPresent(), "Refresh token must be found");
+        foundRefreshToken.get().setRevoked(true);
+        refreshTokenRepository.saveAndFlush(foundRefreshToken.get());
+        entityManager.clear();
+        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+
+        // when
+        ResultActions resultActions = mockMvc.perform(
+                post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldRefreshToken))
+        );
+
+        // then
+        resultActions.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ExpiredOrRevokedRefreshTokenException.code));
+        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        assertEquals(numberOfRefreshTokensBeforeRefresh, numberOfRefreshTokensAfterRefresh);
     }
 }
