@@ -40,8 +40,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public class SessionControllerTests {
     @Autowired
     private MockMvc mockMvc;
-    @Autowired
-    private ObjectMapper objectMapper;
     @MockitoBean
     private SessionService sessionService;
     private final String DEFAULT_PASSWORD = "Corners8829%";
