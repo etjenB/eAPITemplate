@@ -49,7 +49,7 @@ public class SessionControllerTests {
     private UserPrincipal defaultUserPrincipal;
     private RefreshToken defaultRefreshToken;
     private SessionDto defaultSessionDto;
-    private Role roleUser = new Role(1, "ROLE_USER");
+    private Role roleUser = new Role(1L, "ROLE_USER");
 
     @BeforeEach
     void setUp() {

@@ -79,7 +79,7 @@ public class UserServiceTests {
     ArgumentCaptor<String> stringTokenCaptor;
     @Captor
     ArgumentCaptor<RefreshToken> refreshTokenCaptor;
-    private Role roleUser = new Role(1, "ROLE_USER");
+    private Role roleUser = new Role(1L, "ROLE_USER");
     private final String DEFAULT_PASSWORD = "Corners8829%";
     private final String HASHED_DEFAULT_PASSWORD = "$2a$10$FMqByHgNfU/iy2DBubUcpOv29O8sdUubtwLBQGQapCe3AHd3rxo1m";
     private final String DEFAULT_USERNAME = "user";

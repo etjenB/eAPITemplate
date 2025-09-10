@@ -32,7 +32,7 @@ public class EmailServiceTests {
     private EmailServiceImpl emailServiceImpl;
     private User defaultUser;
     private String defaultVerifyToken;
-    private Role roleUser = new Role(1, "ROLE_USER");
+    private Role roleUser = new Role(1L, "ROLE_USER");
 
     @BeforeEach
     void setUp() {

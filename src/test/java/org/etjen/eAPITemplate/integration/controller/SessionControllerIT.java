@@ -57,7 +57,7 @@ public class SessionControllerIT extends AbstractContainerBase {
     private final String DEFAULT_USERNAME = "userb";
     private final String DEFAULT_PASSWORD_ENCODED = "{bcrypt}$2a$10$mAuDLFCHlz5wycTtMhUnPOFeg2VwFvgH6dDjLkwlY9TNSsnOfv8Qy";
     private final String DEFAULT_EMAIL = "userb@gmail.com";
-    private Role roleUser = new Role(1, "ROLE_USER");
+    private Role roleUser = new Role(1L, "ROLE_USER");
 
     @BeforeEach
     void setUp() {
