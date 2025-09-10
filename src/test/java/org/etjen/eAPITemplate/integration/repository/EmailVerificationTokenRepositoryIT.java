@@ -100,7 +100,7 @@ public class EmailVerificationTokenRepositoryIT extends AbstractContainerBase {
     }
 
     @Test
-    void givenEmailAndInstantExpiredToken_whenExistsRecentNotUsed_thenReturnFalse() {
+    void givenEmailAndInstantExpiredToken_whenExistsRecentNotUsed_thenReturnTrue() {
         // given
         defaultEmailVerificationToken.setExpiresAt(Instant.now().minus(Duration.ofHours(5)));   // expired
         emailVerificationTokenRepository.saveAndFlush(defaultEmailVerificationToken);
