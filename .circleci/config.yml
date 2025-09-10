@@ -37,7 +37,7 @@ jobs:
           command: mvn -B -T1C -DskipITs=true test
       - run:
           name: Integration tests (with Testcontainers)
-          command: mvn -B -DskipITs=false verify
+          command: mvn -B -Dspring-boot.repackage.skip=true verify
       - save_cache:
           paths:
             - ~/.m2
