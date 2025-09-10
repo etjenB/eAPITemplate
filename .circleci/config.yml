@@ -1,0 +1,49 @@
+# .circleci/config.yml
+version: 2.1
+
+workflows:
+  test_on_master:
+    jobs:
+      - tests:
+          filters:
+            branches:
+              only: master
+
+jobs:
+  tests:
+    machine: true
+    resource_class: medium
+    environment:
+      MAVEN_OPTS: -Xmx3200m
+    steps:
+      - checkout
+      - run:
+            name: Install Temurin JDK 24 & Maven
+            command: |
+              sudo apt-get update
+              sudo apt-get install -y curl unzip
+              curl -s "https://get.sdkman.io" | bash
+              source "$HOME/.sdkman/bin/sdkman-init.sh"
+              sdk install java 24-tem
+              sdk install maven
+              java -version
+              mvn -v
+      - restore_cache:
+          keys:
+            - m2-{{ checksum "pom.xml" }}
+            - m2-
+      - run:
+          name: Unit tests (no ITs)
+          command: mvn -B -T1C -DskipITs=true test
+      - run:
+          name: Integration tests (with Testcontainers)
+          command: mvn -B -DskipITs=false verify
+      - save_cache:
+          paths:
+            - ~/.m2
+          key: m2-{{ checksum "pom.xml" }}
+# soon
+#      - store_test_results:
+#          path: target/surefire-reports
+#      - store_test_results:
+#          path: target/failsafe-reports
