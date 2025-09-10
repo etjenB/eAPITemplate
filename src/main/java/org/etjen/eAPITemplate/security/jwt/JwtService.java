@@ -39,7 +39,7 @@ public class JwtService {
                     .subject(username)
                     .id(jti)
                     .issuedAt(new Date(System.currentTimeMillis()))
-                    .expiration(new Date(System.currentTimeMillis() + jwtProperties.refreshExpiration().toMillis()))
+                    .expiration(new Date(System.currentTimeMillis() + jwtProperties.expiration().toMillis()))
                     .signWith(signingKey)
                     .compact();
         } catch (Exception ex) {
