@@ -79,7 +79,7 @@ public class UserServiceTests {
     ArgumentCaptor<String> stringTokenCaptor;
     @Captor
     ArgumentCaptor<RefreshToken> refreshTokenCaptor;
-    private Role roleUser;
+    private Role roleUser = new Role(1, "ROLE_USER");
     private final String DEFAULT_PASSWORD = "Corners8829%";
     private final String HASHED_DEFAULT_PASSWORD = "$2a$10$FMqByHgNfU/iy2DBubUcpOv29O8sdUubtwLBQGQapCe3AHd3rxo1m";
     private final String DEFAULT_USERNAME = "user";
@@ -88,13 +88,6 @@ public class UserServiceTests {
     private final String DEFAULT_REFRESH_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJ1c2VyYiIsImp0aSI6Ijg1ZTUxNzBmLWI3YWItNDdiNy1iNTdhLWYzM2EzNGViMTE3NSIsImlhdCI6MTc1NDQ4MjcyMywiZXhwIjoxNzU5NjY2NzIzfQ.IBZTGjR2nCwr7K36hOoYeoQGhh90wENRSmLmvkWKTK58Dtmt3ghqpEZBGrpbKvPJctZlVe9y0RKt-HT5PQ-mXg";
     private final String DEFAULT_RT_JTI = "85e5170f-b7ab-47b7-b57a-f33a34eb1175";
     private final String DEFAULT_ACCESS_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlcyI6WyJST0xFX1VTRVIiXSwic3ViIjoidXNlcmIiLCJqdGkiOiI1YzYzYzdlYi01ZDFjLTRkYWYtODIwYS1kMjgwMzIwMDU1NDgiLCJpYXQiOjE3NTU0NDkwMzcsImV4cCI6MTc1NTQ1MDIzN30.xQIiKft8OKxySzrmp3vOPI81Dz9-OdtxH1EG9BftFPvLRrkWcJs6fubwWsG_o92-r5vp41qyus9RsE7YEX_a6g";
-
-    @BeforeEach
-    void setUp() {
-        roleUser = new Role();
-        roleUser.setId(1);
-        roleUser.setName("ROLE_USER");
-    }
 
     @BeforeEach
     void bindRequest() {

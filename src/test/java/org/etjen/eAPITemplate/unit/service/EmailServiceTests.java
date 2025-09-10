@@ -32,13 +32,11 @@ public class EmailServiceTests {
     private EmailServiceImpl emailServiceImpl;
     private User defaultUser;
     private String defaultVerifyToken;
+    private Role roleUser = new Role(1, "ROLE_USER");
 
     @BeforeEach
     void setUp() {
         defaultVerifyToken = UUID.randomUUID().toString();
-        Role roleUser = new Role();
-        roleUser.setId(1);
-        roleUser.setName("ROLE_USER");
         String DEFAULT_PASSWORD = "Corners8829%";
         String DEFAULT_USERNAME = "user";
         String DEFAULT_EMAIL = "user@gmail.com";

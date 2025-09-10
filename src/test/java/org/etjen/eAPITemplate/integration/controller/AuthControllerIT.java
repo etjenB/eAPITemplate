@@ -642,10 +642,9 @@ public class AuthControllerIT extends AbstractContainerBase {
                 .andExpect(jsonPath("$.access_token").exists())
                 .andExpect(jsonPath("$.expires_in_ms").exists())
                 .andExpect(jsonPath("$.token_type", is("Bearer")));
-        Optional<List<RefreshToken>> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
-        assertTrue(listOfRefreshTokensAfterLogin.isPresent());
-        assertEquals(1, listOfRefreshTokensAfterLogin.get().size());
-        RefreshToken foundRefreshToken = listOfRefreshTokensAfterLogin.get().getFirst();
+        List<RefreshToken> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertEquals(1, listOfRefreshTokensAfterLogin.size());
+        RefreshToken foundRefreshToken = listOfRefreshTokensAfterLogin.getFirst();
         assertFalse(foundRefreshToken.isRevoked());
         assertTrue(foundRefreshToken.getExpiresAt().isAfter(Instant.now()));
         Optional<User> foundUser = userRepository.findById(user.getId());
@@ -682,7 +681,7 @@ public class AuthControllerIT extends AbstractContainerBase {
         entityManager.clear();
         Optional<RefreshToken> oldestBeforeLogin = refreshTokenRepository
                 .findFirstByUserIdAndRevokedFalseOrderByIssuedAtAsc(user.getId());
-        Optional<List<RefreshToken>> listBeforeLogin = refreshTokenRepository.findByUserId(user.getId());
+        List<RefreshToken> listBeforeLogin = refreshTokenRepository.findByUserId(user.getId());
 
         // when
         ResultActions resultActions = mockMvc.perform(
@@ -702,11 +701,9 @@ public class AuthControllerIT extends AbstractContainerBase {
                 .andExpect(jsonPath("$.access_token").exists())
                 .andExpect(jsonPath("$.expires_in_ms").exists())
                 .andExpect(jsonPath("$.token_type", is("Bearer")));
-        Optional<List<RefreshToken>> listAfterLogin = refreshTokenRepository.findByUserId(user.getId());
-        assertTrue(listBeforeLogin.isPresent());
-        assertTrue(listAfterLogin.isPresent());
-        List<RefreshToken> listOfActiveRefreshTokensBeforeLogin = listBeforeLogin.get().stream().filter(rt -> !rt.isRevoked()).toList();
-        List<RefreshToken> listOfActiveRefreshTokensAfterLogin = listAfterLogin.get().stream().filter(rt -> !rt.isRevoked()).toList();
+        List<RefreshToken> listAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        List<RefreshToken> listOfActiveRefreshTokensBeforeLogin = listBeforeLogin.stream().filter(rt -> !rt.isRevoked()).toList();
+        List<RefreshToken> listOfActiveRefreshTokensAfterLogin = listAfterLogin.stream().filter(rt -> !rt.isRevoked()).toList();
         assertEquals(listOfActiveRefreshTokensBeforeLogin.size(), listOfActiveRefreshTokensAfterLogin.size());
         Optional<RefreshToken> oldestAfterLogin = refreshTokenRepository
                 .findFirstByUserIdAndRevokedFalseOrderByIssuedAtAsc(user.getId());
@@ -742,9 +739,8 @@ public class AuthControllerIT extends AbstractContainerBase {
         // then
         resultActions.andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(CustomUnauthorizedException.code));
-        Optional<List<RefreshToken>> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
-        assertTrue(listOfRefreshTokensAfterLogin.isPresent());
-        assertEquals(0, listOfRefreshTokensAfterLogin.get().size());
+        List<RefreshToken> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertEquals(0, listOfRefreshTokensAfterLogin.size());
         Optional<User> foundUser = userRepository.findById(user.getId());
         assertTrue(foundUser.isPresent());
         assertEquals(failedLoginAttempts + 1, foundUser.get().getFailedLoginAttempts());
@@ -781,9 +777,8 @@ public class AuthControllerIT extends AbstractContainerBase {
         // then
         resultActions.andExpect(status().isLocked())
                 .andExpect(jsonPath("$.code").value(AccountLockedException.code));
-        Optional<List<RefreshToken>> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
-        assertTrue(listOfRefreshTokensAfterLogin.isPresent());
-        assertEquals(0, listOfRefreshTokensAfterLogin.get().size());
+        List<RefreshToken> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertEquals(0, listOfRefreshTokensAfterLogin.size());
         Optional<User> foundUser = userRepository.findById(user.getId());
         assertTrue(foundUser.isPresent());
         assertEquals(failedLoginAttemps, foundUser.get().getFailedLoginAttempts());
@@ -815,9 +810,8 @@ public class AuthControllerIT extends AbstractContainerBase {
         // then
         resultActions.andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(EmailNotVerifiedException.code));
-        Optional<List<RefreshToken>> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
-        assertTrue(listOfRefreshTokensAfterLogin.isPresent());
-        assertEquals(0, listOfRefreshTokensAfterLogin.get().size());
+        List<RefreshToken> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertEquals(0, listOfRefreshTokensAfterLogin.size());
         Optional<User> foundUser = userRepository.findById(user.getId());
         assertTrue(foundUser.isPresent());
         assertEquals(0, foundUser.get().getFailedLoginAttempts());
@@ -849,9 +843,8 @@ public class AuthControllerIT extends AbstractContainerBase {
         // then
         resultActions.andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(AccountSuspendedException.code));
-        Optional<List<RefreshToken>> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
-        assertTrue(listOfRefreshTokensAfterLogin.isPresent());
-        assertEquals(0, listOfRefreshTokensAfterLogin.get().size());
+        List<RefreshToken> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertEquals(0, listOfRefreshTokensAfterLogin.size());
         Optional<User> foundUser = userRepository.findById(user.getId());
         assertTrue(foundUser.isPresent());
         assertEquals(0, foundUser.get().getFailedLoginAttempts());
@@ -883,9 +876,8 @@ public class AuthControllerIT extends AbstractContainerBase {
         // then
         resultActions.andExpect(status().isGone())
                 .andExpect(jsonPath("$.code").value(AccountDeletedException.code));
-        Optional<List<RefreshToken>> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
-        assertTrue(listOfRefreshTokensAfterLogin.isPresent());
-        assertEquals(0, listOfRefreshTokensAfterLogin.get().size());
+        List<RefreshToken> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertEquals(0, listOfRefreshTokensAfterLogin.size());
         Optional<User> foundUser = userRepository.findById(user.getId());
         assertTrue(foundUser.isPresent());
         assertEquals(0, foundUser.get().getFailedLoginAttempts());
@@ -920,7 +912,7 @@ public class AuthControllerIT extends AbstractContainerBase {
         entityManager.clear();
         Optional<RefreshToken> oldestBeforeLogin = refreshTokenRepository
                 .findFirstByUserIdAndRevokedFalseOrderByIssuedAtAsc(user.getId());
-        Optional<List<RefreshToken>> listBeforeLogin = refreshTokenRepository.findByUserId(user.getId());
+        List<RefreshToken> listBeforeLogin = refreshTokenRepository.findByUserId(user.getId());
 
         // when
         ResultActions resultActions = mockMvc.perform(
@@ -933,12 +925,10 @@ public class AuthControllerIT extends AbstractContainerBase {
         // then
         resultActions.andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(ConcurrentSessionLimitException.code));
-        Optional<List<RefreshToken>> listAfterLogin = refreshTokenRepository.findByUserId(user.getId());
-        assertTrue(listBeforeLogin.isPresent());
-        assertTrue(listAfterLogin.isPresent());
-        assertEquals(listBeforeLogin.get().size(), listAfterLogin.get().size());
-        List<RefreshToken> listOfActiveRefreshTokensBeforeLogin = listBeforeLogin.get().stream().filter(rt -> !rt.isRevoked()).toList();
-        List<RefreshToken> listOfActiveRefreshTokensAfterLogin = listAfterLogin.get().stream().filter(rt -> !rt.isRevoked()).toList();
+        List<RefreshToken> listAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertEquals(listBeforeLogin.size(), listAfterLogin.size());
+        List<RefreshToken> listOfActiveRefreshTokensBeforeLogin = listBeforeLogin.stream().filter(rt -> !rt.isRevoked()).toList();
+        List<RefreshToken> listOfActiveRefreshTokensAfterLogin = listAfterLogin.stream().filter(rt -> !rt.isRevoked()).toList();
         assertEquals(listOfActiveRefreshTokensBeforeLogin.size(), listOfActiveRefreshTokensAfterLogin.size());
         Optional<RefreshToken> oldestAfterLogin = refreshTokenRepository
                 .findFirstByUserIdAndRevokedFalseOrderByIssuedAtAsc(user.getId());
@@ -973,9 +963,8 @@ public class AuthControllerIT extends AbstractContainerBase {
         // then
         resultActions.andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(JwtGenerationException.code));
-        Optional<List<RefreshToken>> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
-        assertTrue(listOfRefreshTokensAfterLogin.isPresent());
-        assertEquals(0, listOfRefreshTokensAfterLogin.get().size());
+        List<RefreshToken> listOfRefreshTokensAfterLogin = refreshTokenRepository.findByUserId(user.getId());
+        assertEquals(0, listOfRefreshTokensAfterLogin.size());
         Optional<User> foundUser = userRepository.findById(user.getId());
         assertTrue(foundUser.isPresent());
         assertEquals(0, foundUser.get().getFailedLoginAttempts());
@@ -1009,7 +998,7 @@ public class AuthControllerIT extends AbstractContainerBase {
         String oldRefreshToken = loginCookie.getValue();
         assertNotNull(oldRefreshToken);
         assertFalse(oldRefreshToken.isBlank());
-        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).size();
 
         // when
         ResultActions resultActions = mockMvc.perform(
@@ -1033,7 +1022,7 @@ public class AuthControllerIT extends AbstractContainerBase {
         assertNotNull(newRefreshToken);
         assertFalse(newRefreshToken.isBlank());
         assertNotEquals(oldRefreshToken, newRefreshToken, "Refresh should rotate the token");
-        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).size();
         assertEquals(numberOfRefreshTokensBeforeRefresh + 1, numberOfRefreshTokensAfterRefresh);
     }
 
@@ -1095,7 +1084,7 @@ public class AuthControllerIT extends AbstractContainerBase {
         user.setStatus(AccountStatus.PENDING_VERIFICATION);
         userRepository.saveAndFlush(user);
         entityManager.clear();
-        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).size();
 
         // when
         ResultActions resultActions = mockMvc.perform(
@@ -1106,7 +1095,7 @@ public class AuthControllerIT extends AbstractContainerBase {
         // then
         resultActions.andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(EmailNotVerifiedException.code));
-        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).size();
         assertEquals(numberOfRefreshTokensBeforeRefresh, numberOfRefreshTokensAfterRefresh);
     }
 
@@ -1137,7 +1126,7 @@ public class AuthControllerIT extends AbstractContainerBase {
         user.setStatus(AccountStatus.SUSPENDED);
         userRepository.saveAndFlush(user);
         entityManager.clear();
-        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).size();
 
         // when
         ResultActions resultActions = mockMvc.perform(
@@ -1148,7 +1137,7 @@ public class AuthControllerIT extends AbstractContainerBase {
         // then
         resultActions.andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(AccountSuspendedException.code));
-        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).size();
         assertEquals(numberOfRefreshTokensBeforeRefresh, numberOfRefreshTokensAfterRefresh);
     }
 
@@ -1179,7 +1168,7 @@ public class AuthControllerIT extends AbstractContainerBase {
         user.setStatus(AccountStatus.DELETED);
         userRepository.saveAndFlush(user);
         entityManager.clear();
-        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).size();
 
         // when
         ResultActions resultActions = mockMvc.perform(
@@ -1190,7 +1179,7 @@ public class AuthControllerIT extends AbstractContainerBase {
         // then
         resultActions.andExpect(status().isGone())
                 .andExpect(jsonPath("$.code").value(AccountDeletedException.code));
-        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).size();
         assertEquals(numberOfRefreshTokensBeforeRefresh, numberOfRefreshTokensAfterRefresh);
     }
 
@@ -1224,7 +1213,7 @@ public class AuthControllerIT extends AbstractContainerBase {
         foundRefreshToken.get().setRevoked(true);
         refreshTokenRepository.saveAndFlush(foundRefreshToken.get());
         entityManager.clear();
-        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        int numberOfRefreshTokensBeforeRefresh = refreshTokenRepository.findByUserId(user.getId()).size();
 
         // when
         ResultActions resultActions = mockMvc.perform(
@@ -1235,7 +1224,7 @@ public class AuthControllerIT extends AbstractContainerBase {
         // then
         resultActions.andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(ExpiredOrRevokedRefreshTokenException.code));
-        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).orElse(List.of()).size();
+        int numberOfRefreshTokensAfterRefresh = refreshTokenRepository.findByUserId(user.getId()).size();
         assertEquals(numberOfRefreshTokensBeforeRefresh, numberOfRefreshTokensAfterRefresh);
     }
 }

@@ -1,10 +1,14 @@
 package org.etjen.eAPITemplate.domain.model;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.RequiredArgsConstructor;
 
 @Data
+@AllArgsConstructor
+@RequiredArgsConstructor
 @Entity
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "roles")

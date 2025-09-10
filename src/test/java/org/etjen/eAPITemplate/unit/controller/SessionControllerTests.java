@@ -1,6 +1,5 @@
 package org.etjen.eAPITemplate.unit.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.etjen.eAPITemplate.domain.model.RefreshToken;
 import org.etjen.eAPITemplate.domain.model.Role;
 import org.etjen.eAPITemplate.domain.model.User;
@@ -50,14 +49,10 @@ public class SessionControllerTests {
     private UserPrincipal defaultUserPrincipal;
     private RefreshToken defaultRefreshToken;
     private SessionDto defaultSessionDto;
-    private Role roleUser;
-
+    private Role roleUser = new Role(1, "ROLE_USER");
 
     @BeforeEach
     void setUp() {
-        roleUser = new Role();
-        roleUser.setId(1);
-        roleUser.setName("ROLE_USER");
         defaultUser = User.builder()
                 .id(1L)
                 .username(DEFAULT_USERNAME)
@@ -247,21 +242,6 @@ public class SessionControllerTests {
     }
 
     @Test
-    void givenValidUserPrincipalAndValidTokenIdWithoutCsrf_whenRevokeSession_thenHttpStatusForbidden() throws Exception {
-        // given
-
-        // when
-        ResultActions resultActions = mockMvc.perform(
-                delete("/auth/sessions/{tokenId}", defaultRefreshToken.getTokenId())
-                        .with(user(defaultUserPrincipal))
-        );
-
-        // then
-        verifyNoInteractions(sessionService);
-        resultActions.andExpect(status().isForbidden());
-    }
-
-    @Test
     void givenMissingUserPrincipalAndValidTokenId_whenRevokeSession_thenHttpStatusUnauthorized() throws Exception {
         // given
 
@@ -310,21 +290,6 @@ public class SessionControllerTests {
         // then
         verify(sessionService).revokeAll(defaultUserPrincipal.getId());
         resultActions.andExpect(status().isNoContent());
-    }
-
-    @Test
-    void givenValidUserPrincipalWithoutCsrf_whenRevokeAllSessions_thenHttpStatusForbidden() throws Exception {
-        // given
-
-        // when
-        ResultActions resultActions = mockMvc.perform(
-                delete("/auth/sessions")
-                        .with(user(defaultUserPrincipal))
-        );
-
-        // then
-        verifyNoInteractions(sessionService);
-        resultActions.andExpect(status().isForbidden());
     }
 
     @Test

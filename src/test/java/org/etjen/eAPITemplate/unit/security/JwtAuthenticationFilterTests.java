@@ -48,14 +48,7 @@ public class JwtAuthenticationFilterTests {
     private final String DEFAULT_PASSWORD = "Corners8829%";
     private final String DEFAULT_USERNAME = "user";
     private final String DEFAULT_EMAIL = "user@gmail.com";
-    private Role roleUser;
-
-    @BeforeEach
-    void setUp() {
-        roleUser = new Role();
-        roleUser.setId(1);
-        roleUser.setName("ROLE_USER");
-    }
+    private Role roleUser = new Role(1, "ROLE_USER");
 
     @Test
     void givenValidBearerToken_whenFilterRuns_thenSetsAuthWithJti() throws ServletException, IOException {

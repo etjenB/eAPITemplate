@@ -48,12 +48,10 @@ public class SessionServiceTests {
     private User defaultUser;
     private RefreshToken defaultRefreshToken;
     private SessionDto defaultSessionDto;
+    private Role roleUser = new Role(1, "ROLE_USER");
 
     @BeforeEach
     void setUp() {
-        Role roleUser = new Role();
-        roleUser.setId(1);
-        roleUser.setName("ROLE_USER");
         String DEFAULT_PASSWORD = "Corners8829%";
         String DEFAULT_USERNAME = "user";
         String DEFAULT_EMAIL = "user@gmail.com";
@@ -97,7 +95,7 @@ public class SessionServiceTests {
     @Test
     void givenValidUserId_whenList_thenReturnListOfSessions() {
         // given
-        BDDMockito.given(refreshTokenRepository.findByUserId(defaultUser.getId())).willReturn(Optional.of(List.of(defaultRefreshToken)));
+        BDDMockito.given(refreshTokenRepository.findByUserId(defaultUser.getId())).willReturn(List.of(defaultRefreshToken));
         BDDMockito.given(securityContext.getAuthentication()).willReturn(authentication);
         BDDMockito.given(authentication.getCredentials()).willReturn(DEFAULT_RT_JTI);
         BDDMockito.given(sessionMapper.toDtos(List.of(defaultRefreshToken), DEFAULT_RT_JTI)).willReturn(List.of(defaultSessionDto));
@@ -121,7 +119,7 @@ public class SessionServiceTests {
     @Test
     void givenValidUserIdNoJTIInCredentials_whenList_thenThrowMissingAuthenticationCredentialsException() {
         // given
-        BDDMockito.given(refreshTokenRepository.findByUserId(defaultUser.getId())).willReturn(Optional.of(List.of(defaultRefreshToken)));
+        BDDMockito.given(refreshTokenRepository.findByUserId(defaultUser.getId())).willReturn(List.of(defaultRefreshToken));
         BDDMockito.given(securityContext.getAuthentication()).willReturn(authentication);
         BDDMockito.given(authentication.getCredentials()).willReturn(null);
 
@@ -135,22 +133,6 @@ public class SessionServiceTests {
         verifyNoMoreInteractions(securityContext);
         verify(authentication).getCredentials();
         verifyNoMoreInteractions(authentication);
-        verifyNoInteractions(sessionMapper);
-    }
-
-    @Test
-    void givenInvalidUserId_whenList_thenThrowRefreshTokensForUserNotFoundException() {
-        // given
-        BDDMockito.given(refreshTokenRepository.findByUserId(defaultUser.getId())).willReturn(Optional.empty());
-
-        // when
-
-        // then
-        assertThrowsExactly(RefreshTokensForUserNotFoundException.class, () -> sessionServiceImpl.list(defaultUser.getId()));
-        verify(refreshTokenRepository).findByUserId(defaultUser.getId());
-        verifyNoMoreInteractions(refreshTokenRepository);
-        verifyNoInteractions(securityContext);
-        verifyNoInteractions(authentication);
         verifyNoInteractions(sessionMapper);
     }
 

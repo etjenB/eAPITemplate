@@ -22,8 +22,8 @@ public class SessionServiceImpl implements SessionService {
     private final SessionMapper sessionMapper;
 
     @Override
-    public List<SessionDto> list(Long userId) throws RefreshTokensForUserNotFoundException, MissingAuthenticationCredentialsException {
-        List<RefreshToken> tokens = refreshTokenRepository.findByUserId(userId).orElseThrow(() -> new RefreshTokensForUserNotFoundException(userId));
+    public List<SessionDto> list(Long userId) throws MissingAuthenticationCredentialsException {
+        List<RefreshToken> tokens = refreshTokenRepository.findByUserId(userId);
         String currentJti;
         try {
             // pull the JTI from the SecurityContext from credentials where we stored it

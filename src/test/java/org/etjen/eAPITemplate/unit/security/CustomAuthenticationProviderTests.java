@@ -39,14 +39,7 @@ public class CustomAuthenticationProviderTests {
     private final String DEFAULT_USERNAME = "user";
     private final String DEFAULT_EMAIL = "user@gmail.com";
     private String DEFAULT_USER_NOT_FOUND_ENCODED_PASSWORD_HASH = "encoded";
-    private Role roleUser;
-
-    @BeforeEach
-    void setUp() {
-        roleUser = new Role();
-        roleUser.setId(1);
-        roleUser.setName("ROLE_USER");
-    }
+    private Role roleUser = new Role(1, "ROLE_USER");
 
     @Test
     void givenValidAuth_whenAuthenticate_thenMatchesCalledOnceAndReturnSameAuth() {
