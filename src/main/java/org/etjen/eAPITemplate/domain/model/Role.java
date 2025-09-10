@@ -16,7 +16,7 @@ public class Role {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @EqualsAndHashCode.Include
-    private int id;
+    private Long id;
     // ! We store roles in uppercase, with a “ROLE_” prefix to follow Spring’s convention.
     @Column(nullable = false, unique = true)
     private String name;
